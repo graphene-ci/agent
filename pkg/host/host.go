@@ -11,8 +11,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/graphene-ci/graphene/pkg/id"
-	"github.com/graphene-ci/graphene/pkg/wire"
+	"github.com/graphene-ci/pipeline/id"
+	"github.com/graphene-ci/pipeline/wire"
 )
 
 // ImageRef names a worker image in a registry, pinned by tag or digest.

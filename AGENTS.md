@@ -21,7 +21,7 @@ semantics.
   Commits, no `Co-Authored-By`.
 - The agent listens on no ports: outbound connection only, scoped token.
 - The agent never speaks Temporal — the hosted user code does.
-- Queue names and identifiers come from graphene `pkg/wire` / `pkg/id`;
+- Queue names and identifiers come from the pipeline repository (`wire` / `id`);
   no local duplicates of those conventions.
 - Secret values never appear in container env, logs, or specs — names
   only.
