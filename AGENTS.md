@@ -42,3 +42,7 @@ make build
 
 Интеграционные тесты должны проверять протокол через настоящий gRPC transport,
 а не только через mocks интерфейсов.
+
+Локальная ручная проверка выполняется через `graphene-agent-testserver`. Его
+RPC должны соблюдать тот же auth, ordering, offset, digest и immutability
+контракт, что и production server; упрощать эти правила ради dev-tool нельзя.

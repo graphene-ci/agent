@@ -68,11 +68,62 @@ Plaintext transport разрешается только явным `--insecure` 
   --token-file /run/secrets/graphene-agent-token
 ```
 
+## Локальный testserver
+
+`graphene-agent-testserver` поднимает настоящий `AgentService` без Graphene
+control plane. Он проверяет Bearer token, принимает исходящий `Connect` агента,
+печатает agent events как JSON Lines и отправляет инструкции из stdin. Artifact
+download, staging, проверка SHA-256, `QueryArtifactUpload` и resumable upload
+реализованы на диске в `--data-dir`.
+
+Сборка и запуск сервера:
+
+```sh
+make build-testserver
+GRAPHENE_AGENT_TOKEN=development-token \
+  ./dist/graphene-agent-testserver
+```
+
+В другом терминале запускается агент с тем же токеном и отдельным состоянием:
+
+```sh
+GRAPHENE_AGENT_TOKEN=development-token \
+  ./dist/graphene-agent \
+    --insecure \
+    --server 127.0.0.1:7443 \
+    --state-path /tmp/graphene-agent-test.db
+```
+
+Testserver по умолчанию слушает только loopback. Основные команды его консоли:
+
+```text
+command <shell text>
+terminal <shell text>
+input <instruction-id> <text>
+close-input <instruction-id>
+resize <instruction-id> <columns> <rows>
+signal <instruction-id> interrupt|terminate|kill
+cancel <instruction-id>
+facts [sensitive]
+put <testserver-source> <agent-destination>
+collect <agent-source> [artifact-name]
+ping
+disconnect
+quit
+```
+
+`disconnect` принудительно закрывает текущий control stream и позволяет увидеть
+reconnect с новым `Hello` и heartbeat. Загруженные через `collect` файлы лежат в
+`<data-dir>/artifacts/<artifact-id>`. Пути с пробелами для `put` и `collect`
+задаются в shell-style кавычках.
+
 ## Устройство
 
 - `cmd/graphene-agent` — CLI, сигналы процесса и structured logging;
 - `internal/session` — TLS/Bearer transport, единственный writer `Connect`,
   heartbeat и reconnect;
+- `internal/testserver`, `cmd/graphene-agent-testserver` — локальный настоящий
+  `AgentService`, интерактивные инструкции и resumable artifact storage;
 - `internal/agent` — диспетчер пяти примитивов и active-operation registry;
 - `internal/state` — bbolt barrier для installation и instruction IDs;
 - `internal/command`, `internal/output` — процессы, PTY и bounded output;

@@ -22,6 +22,11 @@ build: ## Build graphene-agent
 	mkdir -p $(DIST)
 	go build -trimpath -o $(DIST)/graphene-agent ./cmd/graphene-agent
 
+.PHONY: build-testserver
+build-testserver: ## Build the local AgentService test server
+	mkdir -p $(DIST)
+	go build -trimpath -o $(DIST)/graphene-agent-testserver ./cmd/graphene-agent-testserver
+
 .PHONY: help
 help: ## List targets with explanations
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-12s\033[0m %s\n", $$1, $$2}'
