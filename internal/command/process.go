@@ -34,18 +34,21 @@ type Result struct {
 }
 
 type Process struct {
-	cmd      *exec.Cmd
-	stdin    io.WriteCloser
-	terminal *os.File
-	readers  map[agentpb.OutputStream]io.Reader
-	finished chan struct{}
-	result   Result
-	inputMu  sync.Mutex
-	stopOnce sync.Once
-	mu       sync.Mutex
-	timedOut bool
-	canceled bool
-	grace    time.Duration
+	cmd             *exec.Cmd
+	stdin           io.WriteCloser
+	terminal        *os.File
+	readers         map[agentpb.OutputStream]io.Reader
+	finished        chan struct{}
+	result          Result
+	inputMu         sync.Mutex
+	stopOnce        sync.Once
+	waitOnce        sync.Once
+	readersStarted  sync.WaitGroup
+	readersFinished sync.WaitGroup
+	mu              sync.Mutex
+	timedOut        bool
+	canceled        bool
+	grace           time.Duration
 }
 
 func Start(ctx context.Context, cfg Config, request *agentpb.RunCommand) (*Process, error) {
@@ -89,7 +92,11 @@ func Start(ctx context.Context, cfg Config, request *agentpb.RunCommand) (*Proce
 		}
 		process.stdin = terminal
 		process.terminal = terminal
-		process.readers = map[agentpb.OutputStream]io.Reader{agentpb.OutputStream_OUTPUT_STREAM_TERMINAL: terminal}
+		process.readersStarted.Add(1)
+		process.readersFinished.Add(1)
+		process.readers = map[agentpb.OutputStream]io.Reader{
+			agentpb.OutputStream_OUTPUT_STREAM_TERMINAL: &startedReader{reader: terminal, started: process.readersStarted.Done, finished: process.readersFinished.Done},
+		}
 	} else {
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 		stdin, pipeErr := cmd.StdinPipe()
@@ -108,13 +115,14 @@ func Start(ctx context.Context, cfg Config, request *agentpb.RunCommand) (*Proce
 			return nil, startErr
 		}
 		process.stdin = stdin
+		process.readersStarted.Add(2)
+		process.readersFinished.Add(2)
 		process.readers = map[agentpb.OutputStream]io.Reader{
-			agentpb.OutputStream_OUTPUT_STREAM_STDOUT: stdout,
-			agentpb.OutputStream_OUTPUT_STREAM_STDERR: stderr,
+			agentpb.OutputStream_OUTPUT_STREAM_STDOUT: &startedReader{reader: stdout, started: process.readersStarted.Done, finished: process.readersFinished.Done},
+			agentpb.OutputStream_OUTPUT_STREAM_STDERR: &startedReader{reader: stderr, started: process.readersStarted.Done, finished: process.readersFinished.Done},
 		}
 	}
 
-	go process.wait()
 	go func() {
 		select {
 		case <-ctx.Done():
@@ -229,6 +237,7 @@ func (p *Process) stop() {
 }
 
 func (p *Process) Wait() Result {
+	p.waitOnce.Do(func() { go p.wait() })
 	<-p.finished
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -243,6 +252,8 @@ func (p *Process) Close() error {
 }
 
 func (p *Process) wait() {
+	p.readersStarted.Wait()
+	p.readersFinished.Wait()
 	err := p.cmd.Wait()
 	result := Result{}
 	var exitError *exec.ExitError
@@ -267,6 +278,23 @@ func (p *Process) wait() {
 	p.result = result
 	p.mu.Unlock()
 	close(p.finished)
+}
+
+type startedReader struct {
+	reader       io.Reader
+	started      func()
+	finished     func()
+	startOnce    sync.Once
+	finishedOnce sync.Once
+}
+
+func (r *startedReader) Read(buffer []byte) (int, error) {
+	r.startOnce.Do(r.started)
+	count, err := r.reader.Read(buffer)
+	if err != nil {
+		r.finishedOnce.Do(r.finished)
+	}
+	return count, err
 }
 
 func commandTimeout(request *agentpb.RunCommand, defaultTimeout time.Duration) (time.Duration, error) {

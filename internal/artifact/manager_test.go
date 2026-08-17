@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"errors"
 	"io"
 	"net"
 	"os"
@@ -13,7 +14,9 @@ import (
 
 	agentpb "github.com/graphene-ci/graphenepb/v1/agent"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 )
 
@@ -25,6 +28,9 @@ type artifactServer struct {
 	downloadOffset  uint64
 	badDownload     bool
 	queryPrefixSize uint64
+	queryPrefixHash []byte
+	queryComplete   bool
+	queryArtifact   *agentpb.UploadArtifactResponse
 	uploadBegin     *agentpb.BeginArtifactUpload
 	uploaded        []byte
 }
@@ -49,7 +55,14 @@ func (s *artifactServer) DownloadArtifact(request *agentpb.DownloadArtifactReque
 
 func (s *artifactServer) QueryArtifactUpload(context.Context, *agentpb.QueryArtifactUploadRequest) (*agentpb.QueryArtifactUploadResponse, error) {
 	prefixDigest := sha256.Sum256(s.data[:s.queryPrefixSize])
-	return &agentpb.QueryArtifactUploadResponse{CommittedSize: s.queryPrefixSize, PrefixSha256: prefixDigest[:]}, nil
+	prefixHash := prefixDigest[:]
+	if s.queryPrefixHash != nil {
+		prefixHash = s.queryPrefixHash
+	}
+	return &agentpb.QueryArtifactUploadResponse{
+		CommittedSize: s.queryPrefixSize, PrefixSha256: prefixHash,
+		Complete: s.queryComplete, Artifact: s.queryArtifact,
+	}, nil
 }
 
 func (s *artifactServer) UploadArtifact(stream agentpb.AgentService_UploadArtifactServer) error {
@@ -209,6 +222,162 @@ func TestCollectResumesFromVerifiedPrefix(t *testing.T) {
 	}
 	if !bytes.Equal(uploaded, data) {
 		t.Fatalf("uploaded = %q", uploaded)
+	}
+}
+
+func TestCollectRestartsAfterPrefixMismatch(t *testing.T) {
+	t.Parallel()
+	data := []byte("hello world")
+	server := &artifactServer{data: data, artifactID: "artifact-1", queryPrefixSize: 6, queryPrefixHash: make([]byte, sha256.Size)}
+	client, cleanup := artifactClient(t, server)
+	defer cleanup()
+	path := filepath.Join(t.TempDir(), "source.bin")
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	response, err := New(client, 3, 0o600).Collect(context.Background(), "instruction-1", &agentpb.CollectArtifact{
+		ArtifactId: &agentpb.ArtifactId{Value: "artifact-1"}, Path: path,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.mu.Lock()
+	begin := server.uploadBegin
+	uploaded := append([]byte(nil), server.uploaded...)
+	server.mu.Unlock()
+	if !begin.GetRestart() || begin.GetOffset() != 0 || !bytes.Equal(uploaded, data) || response.GetSize() != uint64(len(data)) {
+		t.Fatalf("begin = %#v, uploaded = %q, response = %#v", begin, uploaded, response)
+	}
+}
+
+func TestCollectAcceptsAlreadyCompleteUpload(t *testing.T) {
+	t.Parallel()
+	data := []byte("complete")
+	digest := sha256.Sum256(data)
+	metadata := &agentpb.UploadArtifactResponse{ArtifactId: &agentpb.ArtifactId{Value: "artifact-1"}, Size: uint64(len(data)), Sha256: digest[:]}
+	server := &artifactServer{data: data, artifactID: "artifact-1", queryComplete: true, queryArtifact: metadata}
+	client, cleanup := artifactClient(t, server)
+	defer cleanup()
+	path := filepath.Join(t.TempDir(), "source.bin")
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	response, err := New(client, 3, 0o600).Collect(context.Background(), "instruction-1", &agentpb.CollectArtifact{
+		ArtifactId: &agentpb.ArtifactId{Value: "artifact-1"}, Path: path,
+	})
+	if err != nil || response.GetArtifactId().GetValue() != "artifact-1" || response.GetSize() != uint64(len(data)) || !bytes.Equal(response.GetSha256(), digest[:]) {
+		t.Fatalf("Collect() = %#v, %v", response, err)
+	}
+	server.mu.Lock()
+	begin := server.uploadBegin
+	server.mu.Unlock()
+	if begin != nil {
+		t.Fatalf("unexpected upload = %#v", begin)
+	}
+}
+
+func TestCollectRejectsInvalidCompleteUpload(t *testing.T) {
+	t.Parallel()
+	data := []byte("complete")
+	for _, metadata := range []*agentpb.UploadArtifactResponse{
+		nil,
+		{ArtifactId: &agentpb.ArtifactId{Value: "another"}, Size: uint64(len(data)), Sha256: make([]byte, sha256.Size)},
+		{ArtifactId: &agentpb.ArtifactId{Value: "artifact-1"}, Size: uint64(len(data)), Sha256: make([]byte, sha256.Size)},
+	} {
+		metadata := metadata
+		t.Run("metadata", func(t *testing.T) {
+			t.Parallel()
+			server := &artifactServer{data: data, artifactID: "artifact-1", queryComplete: true, queryArtifact: metadata}
+			client, cleanup := artifactClient(t, server)
+			defer cleanup()
+			path := filepath.Join(t.TempDir(), "source.bin")
+			if err := os.WriteFile(path, data, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := New(client, 3, 0o600).Collect(context.Background(), "instruction-1", &agentpb.CollectArtifact{
+				ArtifactId: &agentpb.ArtifactId{Value: "artifact-1"}, Path: path,
+			}); err == nil {
+				t.Fatal("expected verification error")
+			}
+		})
+	}
+}
+
+func TestArtifactRequestValidation(t *testing.T) {
+	t.Parallel()
+	manager := New(nil, 3, 0o600)
+	validDigest := make([]byte, sha256.Size)
+	for _, request := range []*agentpb.PutArtifact{
+		nil,
+		{},
+		{ArtifactId: &agentpb.ArtifactId{Value: "artifact"}, Path: "relative", Sha256: validDigest},
+		{ArtifactId: &agentpb.ArtifactId{Value: "artifact"}, Path: "/tmp/file", Sha256: []byte("short")},
+		{ArtifactId: &agentpb.ArtifactId{Value: "artifact"}, Path: "/tmp/file", Sha256: validDigest, Mode: 0o10000},
+	} {
+		if _, err := manager.Put(context.Background(), "instruction", request); !errors.Is(err, ErrInvalidArgument) {
+			t.Fatalf("Put(%#v) error = %v", request, err)
+		}
+	}
+	for _, request := range []*agentpb.CollectArtifact{
+		nil,
+		{},
+		{ArtifactId: &agentpb.ArtifactId{Value: "artifact"}, Path: "relative"},
+	} {
+		if _, err := manager.Collect(context.Background(), "instruction", request); !errors.Is(err, ErrInvalidArgument) {
+			t.Fatalf("Collect(%#v) error = %v", request, err)
+		}
+	}
+}
+
+func TestCollectRejectsDirectory(t *testing.T) {
+	t.Parallel()
+	manager := New(nil, 3, 0o600)
+	_, err := manager.Collect(context.Background(), "instruction", &agentpb.CollectArtifact{
+		ArtifactId: &agentpb.ArtifactId{Value: "artifact"}, Path: t.TempDir(),
+	})
+	if !errors.Is(err, ErrInvalidArgument) {
+		t.Fatalf("Collect() error = %v", err)
+	}
+}
+
+func TestCommitFileOverwriteAndConflict(t *testing.T) {
+	t.Parallel()
+	directory := t.TempDir()
+	destination := filepath.Join(directory, "destination")
+	if err := os.WriteFile(destination, []byte("old"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	source := filepath.Join(directory, "source")
+	if err := os.WriteFile(source, []byte("new"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := commitFile(source, destination, false); !errors.Is(err, ErrAlreadyExists) {
+		t.Fatalf("commit without overwrite error = %v", err)
+	}
+	if err := commitFile(source, destination, true); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(destination)
+	if err != nil || string(data) != "new" {
+		t.Fatalf("destination = %q, %v", data, err)
+	}
+}
+
+func TestTransient(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		err  error
+		want bool
+	}{
+		{err: status.Error(codes.Unavailable, "retry"), want: true},
+		{err: status.Error(codes.DeadlineExceeded, "retry"), want: true},
+		{err: status.Error(codes.ResourceExhausted, "retry"), want: true},
+		{err: status.Error(codes.Aborted, "retry"), want: true},
+		{err: status.Error(codes.InvalidArgument, "stop"), want: false},
+	} {
+		if got := transient(test.err); got != test.want {
+			t.Fatalf("transient(%v) = %t", test.err, got)
+		}
 	}
 }
 

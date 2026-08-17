@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
 	"sort"
 	"sync"
 	"syscall"
@@ -183,7 +184,7 @@ func readStream(stream agentpb.OutputStream, reader io.Reader, output chan<- rea
 			output <- readEvent{stream: stream, data: data}
 		}
 		if err != nil {
-			if !errors.Is(err, io.EOF) && !errors.Is(err, syscall.EIO) {
+			if !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) && !errors.Is(err, syscall.EIO) {
 				output <- readEvent{stream: stream, err: err}
 			}
 			return

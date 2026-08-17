@@ -33,3 +33,41 @@ func TestLoadRejectsTwoSources(t *testing.T) {
 		t.Fatal("expected an error")
 	}
 }
+
+func TestLoadFromEnvironment(t *testing.T) {
+	t.Parallel()
+	token, err := Load("", func(name string) (string, bool) {
+		return "  secret  ", name == tokenEnvironment
+	})
+	if err != nil || token != "secret" {
+		t.Fatalf("Load() = %q, %v", token, err)
+	}
+}
+
+func TestLoadRejectsMissingAndInvalidTokens(t *testing.T) {
+	t.Parallel()
+	missing := filepath.Join(t.TempDir(), "missing")
+	empty := filepath.Join(t.TempDir(), "empty")
+	large := filepath.Join(t.TempDir(), "large")
+	if err := os.WriteFile(empty, []byte(" \n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(large, make([]byte, (64<<10)+1), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		file   string
+		direct string
+		set    bool
+	}{
+		{},
+		{direct: " \n", set: true},
+		{file: missing},
+		{file: empty},
+		{file: large},
+	} {
+		if _, err := Load(test.file, func(string) (string, bool) { return test.direct, test.set }); err == nil {
+			t.Fatalf("Load(%q, %q) succeeded", test.file, test.direct)
+		}
+	}
+}

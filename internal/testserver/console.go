@@ -64,10 +64,14 @@ func (c *Console) Execute(ctx context.Context, line string) error {
 			return fmt.Errorf("usage: %s <shell text>", command)
 		}
 		id := uuid.NewString()
+		var terminalSize *agentpb.TerminalSize
+		if command == "terminal" {
+			terminalSize = &agentpb.TerminalSize{Columns: 80, Rows: 24}
+		}
 		request := &agentpb.ConnectResponse{
 			Id: &agentpb.InstructionId{Value: id},
 			Instruction: &agentpb.ConnectResponse_RunCommand{RunCommand: &agentpb.RunCommand{
-				Command: remainder, Terminal: command == "terminal",
+				Command: remainder, Terminal: command == "terminal", TerminalSize: terminalSize,
 			}},
 		}
 		return c.submit(ctx, command, id, request, nil)

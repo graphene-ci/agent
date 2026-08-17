@@ -115,7 +115,8 @@ quit
 `disconnect` принудительно закрывает текущий control stream и позволяет увидеть
 reconnect с новым `Hello` и heartbeat. Загруженные через `collect` файлы лежат в
 `<data-dir>/artifacts/<artifact-id>`. Пути с пробелами для `put` и `collect`
-задаются в shell-style кавычках.
+задаются в shell-style кавычках. `terminal` начинает PTY размером 80x24;
+дальнейший размер задаётся командой `resize`.
 
 ## Устройство
 

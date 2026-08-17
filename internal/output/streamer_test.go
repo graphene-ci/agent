@@ -70,3 +70,35 @@ func TestQueueDropsOldestWithMarker(t *testing.T) {
 		t.Fatalf("budget used = %d", budget.Used())
 	}
 }
+
+func TestQueueDropNewestAndRemaining(t *testing.T) {
+	t.Parallel()
+	budget := NewBudget(4)
+	q := newQueue(Policy{MaxPendingBytes: 4, MaxInlineBytes: 6, Overflow: agentpb.OutputOverflowPolicy_OUTPUT_OVERFLOW_POLICY_DROP_NEWEST}, budget)
+	q.observe(agentpb.OutputStream_OUTPUT_STREAM_STDOUT, 10)
+	q.push(frame{stream: agentpb.OutputStream_OUTPUT_STREAM_STDOUT, data: []byte("first"), sequence: 1})
+	q.push(frame{stream: agentpb.OutputStream_OUTPUT_STREAM_STDOUT, data: []byte("second"), sequence: 2})
+	q.dropRemaining()
+	q.close()
+	if _, ok := q.take(context.Background()); ok {
+		t.Fatal("closed queue is not empty")
+	}
+	stats := q.outputStats()[0]
+	if stats.GetObservedBytes() != 10 || stats.GetSentBytes() != 0 || stats.GetDroppedBytes() != 11 {
+		t.Fatalf("stats = %#v", stats)
+	}
+	if budget.Used() != 0 {
+		t.Fatalf("budget used = %d", budget.Used())
+	}
+}
+
+func TestQueueDropsPushAfterClose(t *testing.T) {
+	t.Parallel()
+	q := newQueue(Policy{MaxPendingBytes: 4, MaxInlineBytes: 4, Overflow: agentpb.OutputOverflowPolicy_OUTPUT_OVERFLOW_POLICY_DROP_OLDEST}, NewBudget(4))
+	q.close()
+	q.push(frame{stream: agentpb.OutputStream_OUTPUT_STREAM_STDERR, data: []byte("lost")})
+	stats := q.outputStats()[0]
+	if stats.GetDroppedBytes() != 4 {
+		t.Fatalf("stats = %#v", stats)
+	}
+}
