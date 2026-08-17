@@ -1,0 +1,27 @@
+version: "2"
+run:
+  go: "1.25"
+output:
+  formats:
+    text:
+      path: stdout
+linters:
+  default: standard
+  enable:
+    - errorlint
+    - exhaustive
+    - gocritic
+    - gosec
+    - misspell
+    - nolintlint
+    - revive
+    - staticcheck
+  settings:
+    revive:
+      rules:
+        # Repository convention: identifier suffix is "Id" (matches the
+        # protobuf id-message convention), not Go's default "ID".
+        - name: var-naming
+          arguments:
+            - ["ID"]
+            - []
