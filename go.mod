@@ -2,7 +2,7 @@ module github.com/graphene-ci/agent
 
 go 1.25.7
 
-require github.com/graphene-ci/pipeline v0.0.0-20260817154907-acb8e8f3b81c
+require github.com/graphene-ci/pipeline v0.0.0-20260817160650-3a099c6b34f0
 
 require (
 	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a // indirect
