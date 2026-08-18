@@ -147,7 +147,7 @@ func containerName(c host.RunContainer) string {
 			}
 		}, s)
 	}
-	return sanitize(string(c.MachineId)) + "--" + sanitize(string(c.RunId))
+	return sanitize(string(c.AgentId)) + "--" + sanitize(string(c.RunId))
 }
 
 func envList(env map[string]string) []string {

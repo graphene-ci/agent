@@ -48,7 +48,7 @@ func OpenStore(dataDir string) (*Store, error) {
 			// any) keeps running and shows up unowned in reports.
 			continue
 		}
-		s.items[key(c.MachineId, c.RunId)] = c
+		s.items[key(c.AgentId, c.RunId)] = c
 	}
 	return s, nil
 }
@@ -57,20 +57,20 @@ func OpenStore(dataDir string) (*Store, error) {
 func (s *Store) Put(c host.RunContainer) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.items[key(c.MachineId, c.RunId)] = c
+	s.items[key(c.AgentId, c.RunId)] = c
 	raw, err := json.Marshal(c)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(s.file(key(c.MachineId, c.RunId)), raw, 0o600)
+	return os.WriteFile(s.file(key(c.AgentId, c.RunId)), raw, 0o600)
 }
 
 // Delete forgets a container.
 func (s *Store) Delete(c host.RunContainer) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.items, key(c.MachineId, c.RunId))
-	err := os.Remove(s.file(key(c.MachineId, c.RunId)))
+	delete(s.items, key(c.AgentId, c.RunId))
+	err := os.Remove(s.file(key(c.AgentId, c.RunId)))
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -86,16 +86,16 @@ func (s *Store) List() []host.RunContainer {
 		out = append(out, c)
 	}
 	sort.Slice(out, func(i, j int) bool {
-		return key(out[i].MachineId, out[i].RunId) < key(out[j].MachineId, out[j].RunId)
+		return key(out[i].AgentId, out[i].RunId) < key(out[j].AgentId, out[j].RunId)
 	})
 	return out
 }
 
 // Get finds one container record.
-func (s *Store) Get(machineId id.MachineId, runId id.RunId) (host.RunContainer, bool) {
+func (s *Store) Get(agentId id.AgentId, runId id.RunId) (host.RunContainer, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	c, ok := s.items[key(machineId, runId)]
+	c, ok := s.items[key(agentId, runId)]
 	return c, ok
 }
 

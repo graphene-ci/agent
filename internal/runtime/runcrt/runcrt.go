@@ -168,7 +168,7 @@ func (r *Runtime) bundleDir(c host.RunContainer) string {
 
 // containerName flattens the (machine × run) pair into one runc-safe id.
 func containerName(c host.RunContainer) string {
-	return sanitizeName(string(c.MachineId)) + "--" + sanitizeName(string(c.RunId))
+	return sanitizeName(string(c.AgentId)) + "--" + sanitizeName(string(c.RunId))
 }
 
 func envList(imageEnv []string, env map[string]string) []string {

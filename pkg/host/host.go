@@ -31,9 +31,9 @@ func (r ImageRef) Validate() error {
 // worker of one run on this machine. It is owned by the run — the run's
 // end tears it down.
 type RunContainer struct {
-	MachineId id.MachineId `json:"machineId"`
-	RunId     id.RunId     `json:"runId"`
-	Image     ImageRef     `json:"image"`
+	AgentId id.AgentId `json:"agentId"`
+	RunId   id.RunId   `json:"runId"`
+	Image   ImageRef   `json:"image"`
 	// Env is the environment handed to the container (server address,
 	// queue name, run-scoped token). Secret VALUES never appear here —
 	// only names resolved by the code inside.
@@ -42,12 +42,12 @@ type RunContainer struct {
 
 // Queue returns the task queue the hosted worker must serve.
 func (c RunContainer) Queue() string {
-	return wire.MachineRunQueue(c.MachineId, c.RunId)
+	return wire.AgentRunQueue(c.AgentId, c.RunId)
 }
 
 // Validate checks the container record structurally.
 func (c RunContainer) Validate() error {
-	if err := c.MachineId.Validate(); err != nil {
+	if err := c.AgentId.Validate(); err != nil {
 		return err
 	}
 	if err := c.RunId.Validate(); err != nil {

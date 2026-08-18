@@ -69,7 +69,7 @@ func (s *Session) connectAndServe(ctx context.Context) error {
 
 func (s *Session) serve(ctx context.Context, stream agentpb.AgentAPI_SessionClient) error {
 	hello := &agentpb.SessionRequest{Body: &agentpb.SessionRequest_Hello{Hello: &agentpb.Hello{
-		MachineId:    string(s.cfg.MachineId),
+		AgentId:      string(s.cfg.AgentId),
 		AgentVersion: s.version,
 		Facts:        facts.Collect(),
 	}}}
@@ -189,19 +189,19 @@ func (s *Session) ensure(ctx context.Context, cmd *agentpb.EnsureContainer) []*a
 			result(cmd.GetCommandId(), err))
 	}
 	if err := s.runtime.Start(ctx, c); err != nil {
-		s.log.Error("start failed", "machine", c.MachineId, "run", c.RunId, "error", err)
+		s.log.Error("start failed", "machine", c.AgentId, "run", c.RunId, "error", err)
 		return append(out,
 			report(c, agentpb.ContainerState_CONTAINER_STATE_FAILED, err.Error()),
 			result(cmd.GetCommandId(), err))
 	}
-	s.log.Info("container running", "machine", c.MachineId, "run", c.RunId, "image", c.Image)
+	s.log.Info("container running", "machine", c.AgentId, "run", c.RunId, "image", c.Image)
 	return append(out,
 		report(c, agentpb.ContainerState_CONTAINER_STATE_RUNNING, ""),
 		result(cmd.GetCommandId(), nil))
 }
 
 func (s *Session) stop(ctx context.Context, cmd *agentpb.StopContainer) []*agentpb.SessionRequest {
-	machineId, err := id.ParseMachineId(cmd.GetMachineId())
+	agentId, err := id.ParseAgentId(cmd.GetAgentId())
 	if err != nil {
 		return []*agentpb.SessionRequest{result(cmd.GetCommandId(), err)}
 	}
@@ -209,10 +209,10 @@ func (s *Session) stop(ctx context.Context, cmd *agentpb.StopContainer) []*agent
 	if err != nil {
 		return []*agentpb.SessionRequest{result(cmd.GetCommandId(), err)}
 	}
-	c, ok := s.store.Get(machineId, runId)
+	c, ok := s.store.Get(agentId, runId)
 	if !ok {
 		// Unknown to the store — still ask the runtime, idempotently.
-		c = host.RunContainer{MachineId: machineId, RunId: runId}
+		c = host.RunContainer{AgentId: agentId, RunId: runId}
 	}
 	if err := s.runtime.Stop(ctx, c); err != nil {
 		return []*agentpb.SessionRequest{result(cmd.GetCommandId(), err)}
@@ -220,7 +220,7 @@ func (s *Session) stop(ctx context.Context, cmd *agentpb.StopContainer) []*agent
 	if err := s.store.Delete(c); err != nil {
 		return []*agentpb.SessionRequest{result(cmd.GetCommandId(), err)}
 	}
-	s.log.Info("container stopped", "machine", c.MachineId, "run", c.RunId)
+	s.log.Info("container stopped", "machine", c.AgentId, "run", c.RunId)
 	return []*agentpb.SessionRequest{
 		report(c, agentpb.ContainerState_CONTAINER_STATE_STOPPED, ""),
 		result(cmd.GetCommandId(), nil),
@@ -242,10 +242,10 @@ func (s *Session) reports(ctx context.Context) []*agentpb.ContainerReport {
 			state = toProtoState(status)
 		}
 		out = append(out, &agentpb.ContainerReport{
-			MachineId: string(c.MachineId),
-			RunId:     string(c.RunId),
-			State:     state,
-			Message:   message,
+			AgentId: string(c.AgentId),
+			RunId:   string(c.RunId),
+			State:   state,
+			Message: message,
 		})
 	}
 	return out
@@ -253,7 +253,7 @@ func (s *Session) reports(ctx context.Context) []*agentpb.ContainerReport {
 
 func containerFromSpec(spec *agentpb.ContainerSpec) (host.RunContainer, error) {
 	var c host.RunContainer
-	machineId, err := id.ParseMachineId(spec.GetMachineId())
+	agentId, err := id.ParseAgentId(spec.GetAgentId())
 	if err != nil {
 		return c, err
 	}
@@ -262,10 +262,10 @@ func containerFromSpec(spec *agentpb.ContainerSpec) (host.RunContainer, error) {
 		return c, err
 	}
 	c = host.RunContainer{
-		MachineId: machineId,
-		RunId:     runId,
-		Image:     host.ImageRef(spec.GetImage()),
-		Env:       spec.GetEnv(),
+		AgentId: agentId,
+		RunId:   runId,
+		Image:   host.ImageRef(spec.GetImage()),
+		Env:     spec.GetEnv(),
 	}
 	return c, c.Validate()
 }
@@ -288,10 +288,10 @@ func toProtoState(s host.ContainerStatus) agentpb.ContainerState {
 func report(c host.RunContainer, state agentpb.ContainerState, message string) *agentpb.SessionRequest {
 	return &agentpb.SessionRequest{Body: &agentpb.SessionRequest_ContainerReport{
 		ContainerReport: &agentpb.ContainerReport{
-			MachineId: string(c.MachineId),
-			RunId:     string(c.RunId),
-			State:     state,
-			Message:   message,
+			AgentId: string(c.AgentId),
+			RunId:   string(c.RunId),
+			State:   state,
+			Message: message,
 		},
 	}}
 }

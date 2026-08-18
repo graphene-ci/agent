@@ -19,9 +19,9 @@ func TestLifecycle(t *testing.T) {
 	}
 	rt := New(filepath.Join(dir, "data"))
 	c := host.RunContainer{
-		MachineId: id.MachineId("vm-1"),
-		RunId:     id.RunId("run-1"),
-		Image:     host.ImageRef(script),
+		AgentId: id.AgentId("vm-1"),
+		RunId:   id.RunId("run-1"),
+		Image:   host.ImageRef(script),
 	}
 	ctx := context.Background()
 
@@ -64,9 +64,9 @@ func TestStopKillsProcessTree(t *testing.T) {
 	}
 	rt := New(filepath.Join(dir, "data"))
 	c := host.RunContainer{
-		MachineId: id.MachineId("vm-1"),
-		RunId:     id.RunId("run-tree"),
-		Image:     host.ImageRef(script),
+		AgentId: id.AgentId("vm-1"),
+		RunId:   id.RunId("run-tree"),
+		Image:   host.ImageRef(script),
 	}
 	ctx := context.Background()
 	if err := rt.Start(ctx, c); err != nil {
