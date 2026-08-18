@@ -117,7 +117,7 @@ func TestSessionLifecycle(t *testing.T) {
 	cfg := config.Config{
 		Server:       lis.Addr().String(),
 		Token:        "test-token",
-		MachineId:    id.MachineId("vm-1"),
+		AgentId:      id.AgentId("vm-1"),
 		Insecure:     true,
 		ReconnectMin: 10 * time.Millisecond,
 		ReconnectMax: 100 * time.Millisecond,
@@ -131,7 +131,7 @@ func TestSessionLifecycle(t *testing.T) {
 
 	// Hello arrives with the machine id and facts.
 	hello := recvBody(t, fake.received, func(m *agentpb.SessionRequest) *agentpb.Hello { return m.GetHello() })
-	if hello.GetMachineId() != "vm-1" || hello.GetFacts().GetOs() == "" {
+	if hello.GetAgentId() != "vm-1" || hello.GetFacts().GetOs() == "" {
 		t.Fatalf("hello = %+v", hello)
 	}
 
@@ -140,10 +140,10 @@ func TestSessionLifecycle(t *testing.T) {
 		EnsureContainer: &agentpb.EnsureContainer{
 			CommandId: "cmd-1",
 			Spec: &agentpb.ContainerSpec{
-				MachineId: "vm-1",
-				RunId:     "run-1",
-				Image:     "repo/app:1",
-				Env:       map[string]string{"K": "v"},
+				AgentId: "vm-1",
+				RunId:   "run-1",
+				Image:   "repo/app:1",
+				Env:     map[string]string{"K": "v"},
 			},
 		},
 	}}
@@ -156,7 +156,7 @@ func TestSessionLifecycle(t *testing.T) {
 		t.Fatalf("runtime calls: pulled=%v started=%v", rt.pulled, rt.started)
 	}
 	rt.mu.Unlock()
-	if _, ok := store.Get(id.MachineId("vm-1"), id.RunId("run-1")); !ok {
+	if _, ok := store.Get(id.AgentId("vm-1"), id.RunId("run-1")); !ok {
 		t.Fatal("container not recorded in store")
 	}
 
@@ -168,13 +168,13 @@ func TestSessionLifecycle(t *testing.T) {
 
 	// Stop: the agent stops and forgets.
 	fake.commands <- &agentpb.SessionResponse{Body: &agentpb.SessionResponse_StopContainer{
-		StopContainer: &agentpb.StopContainer{CommandId: "cmd-2", MachineId: "vm-1", RunId: "run-1"},
+		StopContainer: &agentpb.StopContainer{CommandId: "cmd-2", AgentId: "vm-1", RunId: "run-1"},
 	}}
 	res = recvBody(t, fake.received, func(m *agentpb.SessionRequest) *agentpb.CommandResult { return m.GetCommandResult() })
 	if res.GetCommandId() != "cmd-2" || res.GetError() != "" {
 		t.Fatalf("stop result = %+v", res)
 	}
-	if _, ok := store.Get(id.MachineId("vm-1"), id.RunId("run-1")); ok {
+	if _, ok := store.Get(id.AgentId("vm-1"), id.RunId("run-1")); ok {
 		t.Fatal("container still in store after stop")
 	}
 

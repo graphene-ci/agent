@@ -41,10 +41,10 @@ message SessionResponse {
   }
 }
 
-// Hello introduces the agent: which machine record it embodies and what
+// Hello introduces the agent: which agent record it embodies and what
 // the machine looks like.
 message Hello {
-  string machine_id = 1;
+  string agent_id = 1;
   string agent_version = 2;
   Facts facts = 3;
 }
@@ -76,7 +76,7 @@ message HelloAck {
 // run on this machine. Env carries wiring only (server address, role,
 // ids, run-scoped token) — secret VALUES never appear here.
 message ContainerSpec {
-  string machine_id = 1;
+  string agent_id = 1;
   string run_id = 2;
   string image = 3;
   map<string, string> env = 4;
@@ -93,7 +93,7 @@ enum ContainerState {
 
 // ContainerReport tells the server where one container is in its life.
 message ContainerReport {
-  string machine_id = 1;
+  string agent_id = 1;
   string run_id = 2;
   ContainerState state = 3;
   string message = 4;
@@ -110,7 +110,7 @@ message EnsureContainer {
 // (machine × run); stopping an absent container is a no-op.
 message StopContainer {
   string command_id = 1;
-  string machine_id = 2;
+  string agent_id = 2;
   string run_id = 3;
 }
 

@@ -15,26 +15,26 @@ import (
 
 // Environment variable names the install script writes.
 const (
-	EnvServer    = "GRAPHENE_AGENT_SERVER"     // gRPC address of the graphene server
-	EnvToken     = "GRAPHENE_AGENT_TOKEN"      //nolint:gosec // the env var NAME, not a credential
-	EnvMachineId = "GRAPHENE_AGENT_MACHINE_ID" // machine record this agent embodies
-	EnvInsecure  = "GRAPHENE_AGENT_INSECURE"   // "1" disables TLS (dev only)
-	EnvCAFile    = "GRAPHENE_AGENT_CA_FILE"    // extra CA bundle for the server cert
-	EnvDataDir   = "GRAPHENE_AGENT_DATA_DIR"   // container bundles and images live here
-	EnvRuntime   = "GRAPHENE_AGENT_RUNTIME"    // "runc" (default) or "exec" (dev)
-	EnvRegistry  = "GRAPHENE_AGENT_REGISTRY"   // host[:port] of the server's registry proxy
+	EnvServer   = "GRAPHENE_AGENT_SERVER"   // gRPC address of the graphene server
+	EnvToken    = "GRAPHENE_AGENT_TOKEN"    //nolint:gosec // the env var NAME, not a credential
+	EnvAgentId  = "GRAPHENE_AGENT_ID"       // machine record this agent embodies
+	EnvInsecure = "GRAPHENE_AGENT_INSECURE" // "1" disables TLS (dev only)
+	EnvCAFile   = "GRAPHENE_AGENT_CA_FILE"  // extra CA bundle for the server cert
+	EnvDataDir  = "GRAPHENE_AGENT_DATA_DIR" // container bundles and images live here
+	EnvRuntime  = "GRAPHENE_AGENT_RUNTIME"  // "runc" (default) or "exec" (dev)
+	EnvRegistry = "GRAPHENE_AGENT_REGISTRY" // host[:port] of the server's registry proxy
 )
 
 // Config is everything the agent needs to run.
 type Config struct {
-	Server    string
-	Token     string
-	MachineId id.MachineId
-	Insecure  bool
-	CAFile    string
-	DataDir   string
-	Runtime   string
-	Registry  string
+	Server   string
+	Token    string
+	AgentId  id.AgentId
+	Insecure bool
+	CAFile   string
+	DataDir  string
+	Runtime  string
+	Registry string
 	// Reconnect tunes the outbound-connection retry loop.
 	ReconnectMin time.Duration
 	ReconnectMax time.Duration
@@ -59,11 +59,11 @@ func FromEnv() (Config, error) {
 	if cfg.Token == "" {
 		return cfg, errors.New(EnvToken + " is required")
 	}
-	mid, err := id.ParseMachineId(os.Getenv(EnvMachineId))
+	mid, err := id.ParseAgentId(os.Getenv(EnvAgentId))
 	if err != nil {
-		return cfg, fmt.Errorf("%s: %w", EnvMachineId, err)
+		return cfg, fmt.Errorf("%s: %w", EnvAgentId, err)
 	}
-	cfg.MachineId = mid
+	cfg.AgentId = mid
 	if v := os.Getenv(EnvInsecure); v != "" {
 		insecure, err := strconv.ParseBool(v)
 		if err != nil {

@@ -303,11 +303,11 @@ func (*SessionResponse_EnsureContainer) isSessionResponse_Body() {}
 
 func (*SessionResponse_StopContainer) isSessionResponse_Body() {}
 
-// Hello introduces the agent: which machine record it embodies and what
+// Hello introduces the agent: which agent record it embodies and what
 // the machine looks like.
 type Hello struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	MachineId     string                 `protobuf:"bytes,1,opt,name=machine_id,json=machineId,proto3" json:"machine_id,omitempty"`
+	AgentId       string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
 	AgentVersion  string                 `protobuf:"bytes,2,opt,name=agent_version,json=agentVersion,proto3" json:"agent_version,omitempty"`
 	Facts         *Facts                 `protobuf:"bytes,3,opt,name=facts,proto3" json:"facts,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -344,9 +344,9 @@ func (*Hello) Descriptor() ([]byte, []int) {
 	return file_api_agent_v1_agent_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *Hello) GetMachineId() string {
+func (x *Hello) GetAgentId() string {
 	if x != nil {
-		return x.MachineId
+		return x.AgentId
 	}
 	return ""
 }
@@ -548,7 +548,7 @@ func (x *HelloAck) GetHeartbeatSeconds() uint32 {
 // ids, run-scoped token) — secret VALUES never appear here.
 type ContainerSpec struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	MachineId     string                 `protobuf:"bytes,1,opt,name=machine_id,json=machineId,proto3" json:"machine_id,omitempty"`
+	AgentId       string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
 	RunId         string                 `protobuf:"bytes,2,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
 	Image         string                 `protobuf:"bytes,3,opt,name=image,proto3" json:"image,omitempty"`
 	Env           map[string]string      `protobuf:"bytes,4,rep,name=env,proto3" json:"env,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
@@ -586,9 +586,9 @@ func (*ContainerSpec) Descriptor() ([]byte, []int) {
 	return file_api_agent_v1_agent_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *ContainerSpec) GetMachineId() string {
+func (x *ContainerSpec) GetAgentId() string {
 	if x != nil {
-		return x.MachineId
+		return x.AgentId
 	}
 	return ""
 }
@@ -617,7 +617,7 @@ func (x *ContainerSpec) GetEnv() map[string]string {
 // ContainerReport tells the server where one container is in its life.
 type ContainerReport struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	MachineId     string                 `protobuf:"bytes,1,opt,name=machine_id,json=machineId,proto3" json:"machine_id,omitempty"`
+	AgentId       string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
 	RunId         string                 `protobuf:"bytes,2,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
 	State         ContainerState         `protobuf:"varint,3,opt,name=state,proto3,enum=agent.v1.ContainerState" json:"state,omitempty"`
 	Message       string                 `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`
@@ -655,9 +655,9 @@ func (*ContainerReport) Descriptor() ([]byte, []int) {
 	return file_api_agent_v1_agent_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *ContainerReport) GetMachineId() string {
+func (x *ContainerReport) GetAgentId() string {
 	if x != nil {
-		return x.MachineId
+		return x.AgentId
 	}
 	return ""
 }
@@ -742,7 +742,7 @@ func (x *EnsureContainer) GetSpec() *ContainerSpec {
 type StopContainer struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	CommandId     string                 `protobuf:"bytes,1,opt,name=command_id,json=commandId,proto3" json:"command_id,omitempty"`
-	MachineId     string                 `protobuf:"bytes,2,opt,name=machine_id,json=machineId,proto3" json:"machine_id,omitempty"`
+	AgentId       string                 `protobuf:"bytes,2,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
 	RunId         string                 `protobuf:"bytes,3,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -785,9 +785,9 @@ func (x *StopContainer) GetCommandId() string {
 	return ""
 }
 
-func (x *StopContainer) GetMachineId() string {
+func (x *StopContainer) GetAgentId() string {
 	if x != nil {
-		return x.MachineId
+		return x.AgentId
 	}
 	return ""
 }
@@ -868,10 +868,9 @@ const file_api_agent_v1_agent_proto_rawDesc = "" +
 	"\thello_ack\x18\x01 \x01(\v2\x12.agent.v1.HelloAckH\x00R\bhelloAck\x12F\n" +
 	"\x10ensure_container\x18\x02 \x01(\v2\x19.agent.v1.EnsureContainerH\x00R\x0fensureContainer\x12@\n" +
 	"\x0estop_container\x18\x03 \x01(\v2\x17.agent.v1.StopContainerH\x00R\rstopContainerB\x06\n" +
-	"\x04body\"r\n" +
-	"\x05Hello\x12\x1d\n" +
-	"\n" +
-	"machine_id\x18\x01 \x01(\tR\tmachineId\x12#\n" +
+	"\x04body\"n\n" +
+	"\x05Hello\x12\x19\n" +
+	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12#\n" +
 	"\ragent_version\x18\x02 \x01(\tR\fagentVersion\x12%\n" +
 	"\x05facts\x18\x03 \x01(\v2\x0f.agent.v1.FactsR\x05facts\"\x9c\x01\n" +
 	"\x05Facts\x12\x1a\n" +
@@ -886,31 +885,28 @@ const file_api_agent_v1_agent_proto_rawDesc = "" +
 	"containers\x18\x01 \x03(\v2\x19.agent.v1.ContainerReportR\n" +
 	"containers\"7\n" +
 	"\bHelloAck\x12+\n" +
-	"\x11heartbeat_seconds\x18\x01 \x01(\rR\x10heartbeatSeconds\"\xc7\x01\n" +
-	"\rContainerSpec\x12\x1d\n" +
-	"\n" +
-	"machine_id\x18\x01 \x01(\tR\tmachineId\x12\x15\n" +
+	"\x11heartbeat_seconds\x18\x01 \x01(\rR\x10heartbeatSeconds\"\xc3\x01\n" +
+	"\rContainerSpec\x12\x19\n" +
+	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12\x15\n" +
 	"\x06run_id\x18\x02 \x01(\tR\x05runId\x12\x14\n" +
 	"\x05image\x18\x03 \x01(\tR\x05image\x122\n" +
 	"\x03env\x18\x04 \x03(\v2 .agent.v1.ContainerSpec.EnvEntryR\x03env\x1a6\n" +
 	"\bEnvEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x91\x01\n" +
-	"\x0fContainerReport\x12\x1d\n" +
-	"\n" +
-	"machine_id\x18\x01 \x01(\tR\tmachineId\x12\x15\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x8d\x01\n" +
+	"\x0fContainerReport\x12\x19\n" +
+	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12\x15\n" +
 	"\x06run_id\x18\x02 \x01(\tR\x05runId\x12.\n" +
 	"\x05state\x18\x03 \x01(\x0e2\x18.agent.v1.ContainerStateR\x05state\x12\x18\n" +
 	"\amessage\x18\x04 \x01(\tR\amessage\"]\n" +
 	"\x0fEnsureContainer\x12\x1d\n" +
 	"\n" +
 	"command_id\x18\x01 \x01(\tR\tcommandId\x12+\n" +
-	"\x04spec\x18\x02 \x01(\v2\x17.agent.v1.ContainerSpecR\x04spec\"d\n" +
+	"\x04spec\x18\x02 \x01(\v2\x17.agent.v1.ContainerSpecR\x04spec\"`\n" +
 	"\rStopContainer\x12\x1d\n" +
 	"\n" +
-	"command_id\x18\x01 \x01(\tR\tcommandId\x12\x1d\n" +
-	"\n" +
-	"machine_id\x18\x02 \x01(\tR\tmachineId\x12\x15\n" +
+	"command_id\x18\x01 \x01(\tR\tcommandId\x12\x19\n" +
+	"\bagent_id\x18\x02 \x01(\tR\aagentId\x12\x15\n" +
 	"\x06run_id\x18\x03 \x01(\tR\x05runId\"D\n" +
 	"\rCommandResult\x12\x1d\n" +
 	"\n" +

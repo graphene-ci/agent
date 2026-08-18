@@ -14,10 +14,10 @@ func TestStoreRoundtrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := host.RunContainer{
-		MachineId: id.MachineId("vm-1"),
-		RunId:     id.RunId("run-1"),
-		Image:     host.ImageRef("repo/app:1"),
-		Env:       map[string]string{"A": "b"},
+		AgentId: id.AgentId("vm-1"),
+		RunId:   id.RunId("run-1"),
+		Image:   host.ImageRef("repo/app:1"),
+		Env:     map[string]string{"A": "b"},
 	}
 	if err := s.Put(c); err != nil {
 		t.Fatal(err)
@@ -28,7 +28,7 @@ func TestStoreRoundtrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, ok := s2.Get(c.MachineId, c.RunId)
+	got, ok := s2.Get(c.AgentId, c.RunId)
 	if !ok || got.Image != c.Image || got.Env["A"] != "b" {
 		t.Fatalf("reloaded record mismatch: %+v ok=%v", got, ok)
 	}
@@ -39,7 +39,7 @@ func TestStoreRoundtrip(t *testing.T) {
 	if err := s2.Delete(c); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := s2.Get(c.MachineId, c.RunId); ok {
+	if _, ok := s2.Get(c.AgentId, c.RunId); ok {
 		t.Fatal("record survived Delete")
 	}
 	// Deleting again is a no-op, not an error.
