@@ -1,0 +1,122 @@
+// The wire between a graphene agent and the graphene server.
+//
+// The agent dials OUT to the server and keeps one bidirectional stream
+// open: it authenticates with its scoped token (gRPC metadata
+// "authorization: Bearer <token>"), introduces itself with Hello, then
+// sends heartbeats and container reports; the server sends container
+// commands. The agent listens on no ports and never speaks Temporal —
+// the user code inside the containers it hosts does.
+//
+// The contract lives in the agent repository; the server imports the
+// generated package and implements the service.
+syntax = "proto3";
+
+package agent.v1;
+
+option go_package = "github.com/graphene-ci/agent/pkg/agentpb;agentpb";
+
+// AgentAPI is served by the graphene server; agents are the clients.
+service AgentAPI {
+  // Session is the single long-lived bidirectional stream of one agent.
+  // First agent message MUST be Hello; first server message is HelloAck.
+  rpc Session(stream SessionRequest) returns (stream SessionResponse);
+}
+
+// SessionRequest is everything an agent sends.
+message SessionRequest {
+  oneof body {
+    Hello hello = 1;
+    Heartbeat heartbeat = 2;
+    ContainerReport container_report = 3;
+    CommandResult command_result = 4;
+  }
+}
+
+// SessionResponse is everything the server sends.
+message SessionResponse {
+  oneof body {
+    HelloAck hello_ack = 1;
+    EnsureContainer ensure_container = 2;
+    StopContainer stop_container = 3;
+  }
+}
+
+// Hello introduces the agent: which machine record it embodies and what
+// the machine looks like.
+message Hello {
+  string machine_id = 1;
+  string agent_version = 2;
+  Facts facts = 3;
+}
+
+// Facts is the bounded machine inventory reported at Hello and refreshed
+// on reconnect. The server stores the facts blob outside the machine
+// record and keeps only its digest there.
+message Facts {
+  string hostname = 1;
+  string os = 2;
+  string arch = 3;
+  uint32 cpus = 4;
+  uint64 memory_bytes = 5;
+  repeated string addresses = 6;
+}
+
+// Heartbeat proves liveness and carries the current container set, so a
+// reconnecting server learns the machine's state without asking.
+message Heartbeat {
+  repeated ContainerReport containers = 1;
+}
+
+// HelloAck accepts the agent and tunes its cadence.
+message HelloAck {
+  uint32 heartbeat_seconds = 1;
+}
+
+// ContainerSpec describes one hosted container: the user worker of one
+// run on this machine. Env carries wiring only (server address, role,
+// ids, run-scoped token) — secret VALUES never appear here.
+message ContainerSpec {
+  string machine_id = 1;
+  string run_id = 2;
+  string image = 3;
+  map<string, string> env = 4;
+}
+
+// ContainerState is the lifecycle of a hosted container.
+enum ContainerState {
+  CONTAINER_STATE_UNSPECIFIED = 0;
+  CONTAINER_STATE_PULLING = 1;
+  CONTAINER_STATE_RUNNING = 2;
+  CONTAINER_STATE_STOPPED = 3;
+  CONTAINER_STATE_FAILED = 4;
+}
+
+// ContainerReport tells the server where one container is in its life.
+message ContainerReport {
+  string machine_id = 1;
+  string run_id = 2;
+  ContainerState state = 3;
+  string message = 4;
+}
+
+// EnsureContainer asks the agent to bring the container up (pull if
+// missing, start if stopped); ensuring a running container is a no-op.
+message EnsureContainer {
+  string command_id = 1;
+  ContainerSpec spec = 2;
+}
+
+// StopContainer asks the agent to terminate and remove the container of
+// (machine × run); stopping an absent container is a no-op.
+message StopContainer {
+  string command_id = 1;
+  string machine_id = 2;
+  string run_id = 3;
+}
+
+// CommandResult reports completion of one command; empty error means
+// success. State changes travel separately as ContainerReport.
+message CommandResult {
+  string command_id = 1;
+  string error = 2;
+}
