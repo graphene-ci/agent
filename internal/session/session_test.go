@@ -12,8 +12,8 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/graphene-ci/agent/internal/config"
-	"github.com/graphene-ci/agent/pkg/agentpb"
 	"github.com/graphene-ci/agent/pkg/host"
+	agentpb "github.com/graphene-ci/agent/pkg/proto/agent/v1"
 	"github.com/graphene-ci/pipeline/pkg/id"
 )
 

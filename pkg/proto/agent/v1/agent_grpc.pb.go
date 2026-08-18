@@ -14,7 +14,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.1
 // - protoc             v0.14.1-v0.16.6-bufbuild-protocompile-easyp
-// source: api/agent/v1/agent.proto
+// source: proto/agent/v1/agent.proto
 
 package agentpb
 
@@ -131,5 +131,5 @@ var AgentAPI_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "api/agent/v1/agent.proto",
+	Metadata: "proto/agent/v1/agent.proto",
 }

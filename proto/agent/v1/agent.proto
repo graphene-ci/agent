@@ -13,7 +13,7 @@ syntax = "proto3";
 
 package agent.v1;
 
-option go_package = "github.com/graphene-ci/agent/pkg/agentpb;agentpb";
+option go_package = "github.com/graphene-ci/agent/pkg/proto/agent/v1;agentpb";
 
 // AgentAPI is served by the graphene server; agents are the clients.
 service AgentAPI {

@@ -8,7 +8,7 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/graphene-ci/agent/pkg/agentpb"
+	agentpb "github.com/graphene-ci/agent/pkg/proto/agent/v1"
 )
 
 const maxAddresses = 32

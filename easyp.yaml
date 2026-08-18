@@ -4,7 +4,7 @@ lint:
   service_suffix: API
 generate:
   inputs:
-    - directory: api
+    - directory: proto
   plugins:
     - name: go
       out: .
