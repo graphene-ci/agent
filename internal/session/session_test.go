@@ -39,6 +39,8 @@ func (f *fakeRuntime) Start(_ context.Context, c host.RunContainer) error {
 	return nil
 }
 
+func (f *fakeRuntime) LogPath(host.RunContainer) string { return "/dev/null" }
+
 func (f *fakeRuntime) Stop(_ context.Context, c host.RunContainer) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

@@ -78,6 +78,9 @@ type Runtime interface {
 	// Start launches the container for the record; starting an already
 	// running container is a no-op.
 	Start(ctx context.Context, c RunContainer) error
+	// LogPath is the container's stdout/stderr capture file on the
+	// machine — the agent tails it into the telemetry stream.
+	LogPath(c RunContainer) string
 	// Stop terminates and removes the container; not-found is not an
 	// error.
 	Stop(ctx context.Context, c RunContainer) error
