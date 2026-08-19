@@ -60,9 +60,16 @@ func (r *Runtime) Start(ctx context.Context, c host.RunContainer) error {
 	}
 	defer func() { _ = logFile.Close() }()
 
+	workspace, err := r.workspaceDir(c)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(workspace, 0o755); err != nil { //nolint:gosec // shared work dir, see the runc runtime
+		return err
+	}
 	cmd := exec.Command(string(c.Image)) //nolint:gosec // running the user's executable is this runtime's purpose
 	cmd.Dir = dir
-	cmd.Env = envList(c.Env)
+	cmd.Env = append(envList(c.Env), "GRAPHENE_WORKSPACE="+workspace)
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	// Own process group: stopping kills the whole tree, not just the leader.
@@ -100,6 +107,10 @@ func (r *Runtime) Stop(ctx context.Context, c host.RunContainer) error {
 			_ = syscall.Kill(-pid, syscall.SIGKILL)
 		}
 	}
+	// The workspace dies with the run container.
+	if workspace, err := r.workspaceDir(c); err == nil {
+		_ = os.RemoveAll(workspace)
+	}
 	return os.RemoveAll(r.containerDir(c))
 }
 
@@ -120,6 +131,12 @@ func (r *Runtime) Status(_ context.Context, c host.RunContainer) (host.Container
 
 func (r *Runtime) containerDir(c host.RunContainer) string {
 	return filepath.Join(r.dataDir, "containers", containerName(c))
+}
+
+// workspaceDir is the per-(machine × run) work directory; the process
+// runs on the machine, so the path is trivially the same everywhere.
+func (r *Runtime) workspaceDir(c host.RunContainer) (string, error) {
+	return filepath.Abs(filepath.Join(r.dataDir, "work", containerName(c)))
 }
 
 func (r *Runtime) pidFile(c host.RunContainer) string {

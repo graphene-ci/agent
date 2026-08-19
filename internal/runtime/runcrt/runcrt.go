@@ -79,7 +79,14 @@ func (r *Runtime) Start(ctx context.Context, c host.RunContainer) error {
 		return fmt.Errorf("overlay: %w", err)
 	}
 
-	spec := containerSpec(cfg, c.Env)
+	workspace, err := r.workspaceDir(c)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(workspace, 0o755); err != nil { //nolint:gosec // shared work dir: the machine's docker daemon and chrooted scripts read it too
+		return err
+	}
+	spec := containerSpec(cfg, c.Env, workspace)
 	raw, err := json.MarshalIndent(spec, "", "  ")
 	if err != nil {
 		return err
@@ -127,6 +134,11 @@ func (r *Runtime) Stop(ctx context.Context, c host.RunContainer) error {
 	if err := unmountOverlay(filepath.Join(bundle, "merged")); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("unmount: %w", err)
 	}
+	// The workspace dies with the run container — it was never a place
+	// to keep things (that is what artifacts are for).
+	if workspace, err := r.workspaceDir(c); err == nil {
+		_ = os.RemoveAll(workspace)
+	}
 	return os.RemoveAll(bundle)
 }
 
@@ -164,6 +176,23 @@ func (r *Runtime) state(ctx context.Context, name string) (string, error) {
 
 func (r *Runtime) bundleDir(c host.RunContainer) string {
 	return filepath.Join(r.dataDir, "containers", containerName(c))
+}
+
+// workspaceDir is the per-(machine × run) work directory on the
+// MACHINE, bind-mounted into the container at the SAME absolute path —
+// one path valid everywhere: inside the container, in chrooted machine
+// scripts, for the docker daemon's volume binds and build contexts.
+func (r *Runtime) workspaceDir(c host.RunContainer) (string, error) {
+	abs, err := filepath.Abs(filepath.Join(r.dataDir, "work", containerName(c)))
+	if err != nil {
+		return "", err
+	}
+	// Symlinks would break the same-path property: the daemon and the
+	// container must agree on the literal string.
+	if resolved, err := filepath.EvalSymlinks(filepath.Dir(abs)); err == nil {
+		abs = filepath.Join(resolved, filepath.Base(abs))
+	}
+	return abs, nil
 }
 
 // containerName flattens the (machine × run) pair into one runc-safe id.
