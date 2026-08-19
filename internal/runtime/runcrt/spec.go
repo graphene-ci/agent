@@ -15,11 +15,15 @@ import (
 // DOCKER_HOST, never the machine root.
 const (
 	envMachineRoot = "GRAPHENE_MACHINE_ROOT" // mirrored by pipeline pkg machine
+	envWorkspace   = "GRAPHENE_WORKSPACE"    // mirrored by pipeline pkg machine
 	machineRoot    = "/host"
 )
 
-func containerSpec(cfg imageConfig, env map[string]string) *specs.Spec {
-	withMachine := map[string]string{envMachineRoot: machineRoot}
+func containerSpec(cfg imageConfig, env map[string]string, workspace string) *specs.Spec {
+	withMachine := map[string]string{
+		envMachineRoot: machineRoot,
+		envWorkspace:   workspace,
+	}
 	if _, ok := env["DOCKER_HOST"]; !ok {
 		withMachine["DOCKER_HOST"] = "unix://" + machineRoot + "/var/run/docker.sock"
 	}
@@ -65,6 +69,12 @@ func containerSpec(cfg imageConfig, env map[string]string) *specs.Spec {
 			// /host/<path>, the docker socket is
 			// /host/var/run/docker.sock, scripts chroot into it.
 			{Destination: "/host", Type: "bind", Source: "/",
+				Options: []string{"rbind", "rw"}},
+			// The workspace: SAME absolute path on the machine and in
+			// the container — no path translation exists anywhere (the
+			// github-runner lesson). Valid for the container's code,
+			// chrooted machine scripts, and the docker daemon at once.
+			{Destination: workspace, Type: "bind", Source: workspace,
 				Options: []string{"rbind", "rw"}},
 		},
 		Linux: &specs.Linux{
