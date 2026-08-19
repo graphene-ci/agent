@@ -129,6 +129,11 @@ func (r *Runtime) Status(_ context.Context, c host.RunContainer) (host.Container
 	return host.StatusStopped, nil
 }
 
+// LogPath names the process's combined output capture.
+func (r *Runtime) LogPath(c host.RunContainer) string {
+	return filepath.Join(r.containerDir(c), "log")
+}
+
 func (r *Runtime) containerDir(c host.RunContainer) string {
 	return filepath.Join(r.dataDir, "containers", containerName(c))
 }

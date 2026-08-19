@@ -27,17 +27,22 @@ type Session struct {
 	store   *Store
 	version string
 	log     *slog.Logger
+	tail    *tailers
+	// runCtx bounds container tailers to the agent's life, not one
+	// stream's — containers survive reconnects.
+	runCtx context.Context //nolint:containedctx // set once by Run, the composition point
 }
 
 // New assembles a session.
 func New(cfg config.Config, rt host.Runtime, store *Store, version string, log *slog.Logger) *Session {
-	return &Session{cfg: cfg, runtime: rt, store: store, version: version, log: log}
+	return &Session{cfg: cfg, runtime: rt, store: store, version: version, log: log, tail: newTailers(log)}
 }
 
 // Run keeps the agent connected until ctx ends: dial, serve one stream,
 // reconnect with backoff. This is the composition point of the session —
 // every goroutine of the agent starts under it.
 func (s *Session) Run(ctx context.Context) error {
+	s.runCtx = ctx
 	backoff := s.cfg.ReconnectMin
 	for {
 		err := s.connectAndServe(ctx)
@@ -60,6 +65,8 @@ func (s *Session) connectAndServe(ctx context.Context) error {
 		return err
 	}
 	defer func() { _ = conn.Close() }()
+	s.tail.setConn(conn)
+	defer s.tail.setConn(nil)
 	stream, err := agentpb.NewAgentAPIClient(conn).Session(ctx)
 	if err != nil {
 		return err
@@ -195,6 +202,9 @@ func (s *Session) ensure(ctx context.Context, cmd *agentpb.EnsureContainer) []*a
 			result(cmd.GetCommandId(), err))
 	}
 	s.log.Info("container running", "machine", c.AgentId, "run", c.RunId, "image", c.Image)
+	// From here the container's stdout is telemetry: tail the capture
+	// into the door for the life of the container.
+	s.tail.start(s.runCtx, c, s.runtime.LogPath(c))
 	return append(out,
 		report(c, agentpb.ContainerState_CONTAINER_STATE_RUNNING, ""),
 		result(cmd.GetCommandId(), nil))
@@ -214,6 +224,7 @@ func (s *Session) stop(ctx context.Context, cmd *agentpb.StopContainer) []*agent
 		// Unknown to the store — still ask the runtime, idempotently.
 		c = host.RunContainer{AgentId: agentId, RunId: runId}
 	}
+	s.tail.stop(c)
 	if err := s.runtime.Stop(ctx, c); err != nil {
 		return []*agentpb.SessionRequest{result(cmd.GetCommandId(), err)}
 	}

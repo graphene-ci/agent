@@ -174,6 +174,12 @@ func (r *Runtime) state(ctx context.Context, name string) (string, error) {
 	return st.Status, nil
 }
 
+// LogPath names the container's combined output capture (the detached
+// runc process inherits it).
+func (r *Runtime) LogPath(c host.RunContainer) string {
+	return filepath.Join(r.bundleDir(c), "log")
+}
+
 func (r *Runtime) bundleDir(c host.RunContainer) string {
 	return filepath.Join(r.dataDir, "containers", containerName(c))
 }
