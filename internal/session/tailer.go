@@ -68,7 +68,7 @@ func (t *tailers) start(ctx context.Context, c host.RunContainer, path string) {
 	if _, running := t.active[key]; running {
 		return
 	}
-	tctx, cancel := context.WithCancel(ctx)
+	tctx, cancel := context.WithCancel(ctx) //nolint:gosec // the cancel lives in t.active and runs in stop()
 	t.active[key] = cancel
 	go t.follow(tctx, c, path)
 }
@@ -146,7 +146,7 @@ func trimEOL(s string) string {
 }
 
 func (t *tailers) export(ctx context.Context, client collogspb.LogsServiceClient, c host.RunContainer, lines []string) error {
-	now := uint64(time.Now().UnixNano()) //nolint:gosec // wall clock is non-negative
+	now := uint64(time.Now().UnixNano())
 	records := make([]*logspb.LogRecord, 0, len(lines))
 	for _, line := range lines {
 		records = append(records, &logspb.LogRecord{
