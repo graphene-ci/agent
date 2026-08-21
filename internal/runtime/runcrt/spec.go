@@ -72,6 +72,11 @@ func containerSpec(cfg imageConfig, env map[string]string, workspace string) *sp
 			// /host/var/run/docker.sock, scripts chroot into it.
 			{Destination: "/host", Type: "bind", Source: "/",
 				Options: []string{"rbind", "rw"}},
+			// The HOST's procfs under the machine root: chrooted
+			// tooling (systemctl and friends) needs the host's /proc,
+			// and a bind of the host's mount keeps the host's pid view.
+			{Destination: "/host/proc", Type: "bind", Source: "/proc",
+				Options: []string{"rbind", "ro"}},
 			// The workspace: SAME absolute path on the machine and in
 			// the container — no path translation exists anywhere (the
 			// github-runner lesson). Valid for the container's code,
