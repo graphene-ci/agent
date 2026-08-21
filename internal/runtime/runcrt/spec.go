@@ -25,7 +25,9 @@ func containerSpec(cfg imageConfig, env map[string]string, workspace string) *sp
 		envWorkspace:   workspace,
 	}
 	if _, ok := env["DOCKER_HOST"]; !ok {
-		withMachine["DOCKER_HOST"] = "unix://" + machineRoot + "/var/run/docker.sock"
+		// /run, not /var/run: the latter is an ABSOLUTE symlink on the
+		// machine and would resolve inside the container's own rootfs.
+		withMachine["DOCKER_HOST"] = "unix://" + machineRoot + "/run/docker.sock"
 	}
 	for k, v := range env {
 		withMachine[k] = v
