@@ -45,7 +45,7 @@ func run() error {
 	var rt host.Runtime
 	switch cfg.Runtime {
 	case "runc":
-		rt = runcrt.New(cfg.DataDir, runcrt.Options{Registry: cfg.Registry, Token: cfg.Token})
+		rt = runcrt.New(cfg.DataDir, runcrt.Options{Registry: cfg.Registry, Token: cfg.Token, Insecure: cfg.Insecure})
 	case "exec":
 		rt = execproc.New(cfg.DataDir)
 	default:

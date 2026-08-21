@@ -24,7 +24,8 @@ import (
 // Runtime drives runc under dataDir.
 type Runtime struct {
 	dataDir  string
-	registry string // host[:port] of the server's registry proxy
+	registry string
+	insecure bool // host[:port] of the server's registry proxy
 	token    string // scoped token: registry proxy auth
 	runc     string // runc binary path
 }
@@ -36,6 +37,8 @@ type Options struct {
 	Registry string
 	// Token authenticates the agent to the registry proxy.
 	Token string
+	// Insecure pulls over plain HTTP — the door without TLS (dev).
+	Insecure bool
 	// RuncBinary overrides the runc path; empty means "runc" from PATH.
 	RuncBinary string
 }
@@ -47,6 +50,7 @@ func New(dataDir string, opts Options) *Runtime {
 	}
 	return &Runtime{
 		dataDir:  dataDir,
+		insecure: opts.Insecure,
 		registry: opts.Registry,
 		token:    opts.Token,
 		runc:     opts.RuncBinary,
