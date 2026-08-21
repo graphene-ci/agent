@@ -86,7 +86,10 @@ func containerSpec(cfg imageConfig, env map[string]string, workspace string) *sp
 		},
 		Linux: &specs.Linux{
 			Namespaces: []specs.LinuxNamespace{
-				{Type: specs.PIDNamespace},
+				// No PIDNamespace: packaging, not isolation — chrooted
+				// machine tooling must see the host's systemd, and
+				// daemons an installer starts must outlive this
+				// container (they reparent to the host's init).
 				{Type: specs.IPCNamespace},
 				{Type: specs.UTSNamespace},
 				{Type: specs.MountNamespace},
