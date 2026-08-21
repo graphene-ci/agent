@@ -37,7 +37,12 @@ func (r *Runtime) Pull(ctx context.Context, image host.ImageRef) error {
 		return nil
 	}
 
-	ref, err := name.ParseReference(string(image), name.WithDefaultRegistry(r.registry))
+	nameOpts := []name.Option{name.WithDefaultRegistry(r.registry)}
+	if r.insecure {
+		// TODO(tls): drop once the door serves TLS.
+		nameOpts = append(nameOpts, name.Insecure)
+	}
+	ref, err := name.ParseReference(string(image), nameOpts...)
 	if err != nil {
 		return fmt.Errorf("image ref: %w", err)
 	}
