@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"runtime"
+	"strings"
 
 	agentpb "github.com/graphene-ci/agent/pkg/proto/agent/v1"
 )
@@ -27,7 +28,33 @@ func Collect() *agentpb.Facts {
 	}
 	f.MemoryBytes = totalMemoryBytes()
 	f.Addresses = collectAddresses()
+	f.OsReleaseId, f.OsReleaseLike, f.OsReleaseVersion = osRelease()
 	return f
+}
+
+// osRelease reads the distribution identity — what a library needs to
+// pick a package manager instead of guessing apt.
+func osRelease() (id, like, version string) {
+	raw, err := os.ReadFile("/etc/os-release")
+	if err != nil {
+		return "", "", ""
+	}
+	for _, line := range strings.Split(string(raw), "\n") {
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		value = strings.Trim(value, `"`)
+		switch key {
+		case "ID":
+			id = value
+		case "ID_LIKE":
+			like = value
+		case "VERSION_ID":
+			version = value
+		}
+	}
+	return id, like, version
 }
 
 func collectAddresses() []string {

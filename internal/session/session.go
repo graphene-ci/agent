@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"strings"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -172,6 +174,9 @@ func (s *Session) execute(ctx context.Context, cmd *agentpb.SessionResponse) []*
 		return s.ensure(ctx, body.EnsureContainer)
 	case *agentpb.SessionResponse_StopContainer:
 		return s.stop(ctx, body.StopContainer)
+	case *agentpb.SessionResponse_RotateToken:
+		s.rotate(body.RotateToken.GetToken())
+		return nil
 	default:
 		s.log.Warn("unknown server message ignored")
 		return nil
@@ -313,4 +318,44 @@ func result(commandId string, err error) *agentpb.SessionRequest {
 		msg.Error = err.Error()
 	}
 	return &agentpb.SessionRequest{Body: &agentpb.SessionRequest_CommandResult{CommandResult: msg}}
+}
+
+// rotate swaps the agent's credential: the next dial uses the fresh
+// token, the running stream stays on the old one, and the env file is
+// rewritten so a machine reboot comes back with the fresh one too.
+func (s *Session) rotate(token string) {
+	if token == "" {
+		return
+	}
+	s.cfg.Token = token
+	path := os.Getenv("GRAPHENE_AGENT_ENV_FILE")
+	if path == "" {
+		path = "/etc/graphene-agent/env"
+	}
+	raw, err := os.ReadFile(path) //nolint:gosec // the agent's own env file
+	if err != nil {
+		s.log.Warn("token rotated in memory only: env file unreadable", "path", path, "error", err)
+		return
+	}
+	lines := strings.Split(string(raw), "\n")
+	replaced := false
+	for i, line := range lines {
+		if strings.HasPrefix(line, config.EnvToken+"=") {
+			lines[i] = config.EnvToken + "=" + token
+			replaced = true
+		}
+	}
+	if !replaced {
+		lines = append(lines, config.EnvToken+"="+token)
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, []byte(strings.Join(lines, "\n")), 0o600); err != nil {
+		s.log.Warn("token rotated in memory only: env file not writable", "path", path, "error", err)
+		return
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		s.log.Warn("token rotated in memory only: env file not replaceable", "path", path, "error", err)
+		return
+	}
+	s.log.Info("agent token rotated")
 }
