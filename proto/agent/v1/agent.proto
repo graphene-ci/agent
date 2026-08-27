@@ -29,6 +29,8 @@ message SessionRequest {
     Heartbeat heartbeat = 2;
     ContainerReport container_report = 3;
     CommandResult command_result = 4;
+    PtyOutput pty_output = 5;
+    PtyClosed pty_closed = 6;
   }
 }
 
@@ -44,7 +46,57 @@ message SessionResponse {
     // never receives this (a static configured token) simply keeps
     // what it has.
     RotateToken rotate_token = 4;
+    OpenPty open_pty = 5;
+    PtyInput pty_input = 6;
+    PtyResize pty_resize = 7;
+    ClosePty close_pty = 8;
   }
+}
+
+// OpenPty asks the agent to start an interactive shell in a pty. The
+// pty_id is the SERVER's name for the session; every later frame in
+// either direction carries it. A second OpenPty with a live pty_id is
+// a no-op.
+message OpenPty {
+  string pty_id = 1;
+  uint32 cols = 2;
+  uint32 rows = 3;
+}
+
+// PtyInput carries keystrokes (raw bytes, escape sequences included)
+// into the shell.
+message PtyInput {
+  string pty_id = 1;
+  bytes data = 2;
+}
+
+// PtyResize follows the viewer's terminal geometry.
+message PtyResize {
+  string pty_id = 1;
+  uint32 cols = 2;
+  uint32 rows = 3;
+}
+
+// ClosePty tears the session down: the shell gets SIGHUP, the pty
+// closes. Closing an unknown pty is a no-op — the session is mortal by
+// nature and either side may have buried it first.
+message ClosePty {
+  string pty_id = 1;
+}
+
+// PtyOutput carries shell output. Frames are capped (the agent splits
+// larger reads) so a `cat` of a big file cannot starve the container
+// commands sharing this stream.
+message PtyOutput {
+  string pty_id = 1;
+  bytes data = 2;
+}
+
+// PtyClosed reports the shell's end, whoever caused it.
+message PtyClosed {
+  string pty_id = 1;
+  int32 exit_code = 2;
+  string message = 3;
 }
 
 // RotateToken carries the replacement credential.
