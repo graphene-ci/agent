@@ -102,6 +102,11 @@ func (s *Session) serve(ctx context.Context, stream agentpb.AgentAPI_SessionClie
 	group, gctx := errgroup.WithContext(ctx)
 	commands := make(chan *agentpb.SessionResponse)
 	outbox := make(chan *agentpb.SessionRequest, 16)
+	// PTY sessions are mortal with THIS stream: opened by its frames,
+	// buried when it ends. Their frames bypass the container-command
+	// queue — a keystroke must not wait behind an image pull.
+	shells := newPtys()
+	defer shells.closeAll()
 
 	// Receive: the stream is the only input.
 	group.Go(func() error {
@@ -110,6 +115,9 @@ func (s *Session) serve(ctx context.Context, stream agentpb.AgentAPI_SessionClie
 			msg, err := stream.Recv()
 			if err != nil {
 				return fmt.Errorf("recv: %w", err)
+			}
+			if shells.handle(gctx, msg, outbox) {
+				continue
 			}
 			select {
 			case commands <- msg:

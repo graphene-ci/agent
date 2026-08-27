@@ -3,6 +3,7 @@ module github.com/graphene-ci/agent
 go 1.25.7
 
 require (
+	github.com/creack/pty v1.1.24
 	github.com/google/go-containerregistry v0.21.9
 	github.com/graphene-ci/pipeline v0.0.0-20260818135036-2d5e9312b69a
 	github.com/opencontainers/runtime-spec v1.3.0
