@@ -9,6 +9,8 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"os/user"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -63,12 +65,8 @@ func (p *ptys) open(ctx context.Context, req *agentpb.OpenPty, outbox chan<- *ag
 	}
 	p.mu.Unlock()
 
-	shell := os.Getenv("SHELL")
-	if shell == "" {
-		shell = "/bin/sh"
-	}
 	//nolint:gosec // the whole point IS running the operator's shell
-	cmd := exec.CommandContext(ctx, shell, "-l")
+	cmd := exec.CommandContext(ctx, loginShell(), "-l")
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
 	master, err := pty.StartWithSize(cmd, &pty.Winsize{
 		Cols: uint16(min(req.GetCols(), 65535)), //nolint:gosec // capped
@@ -158,6 +156,32 @@ func (p *ptys) closeAll() {
 	for _, id := range ids {
 		p.close(id)
 	}
+}
+
+// loginShell picks the shell a person would get logging in: $SHELL
+// when the environment carries one, else the running user's login
+// shell from /etc/passwd, else bash, else sh. Under systemd the
+// environment carries nothing, and falling straight to /bin/sh lands
+// an operator in dash — no readline, no history, broken multibyte
+// input.
+func loginShell() string {
+	if sh := os.Getenv("SHELL"); sh != "" {
+		return sh
+	}
+	if u, err := user.Current(); err == nil {
+		if raw, err := os.ReadFile("/etc/passwd"); err == nil {
+			for _, line := range strings.Split(string(raw), "\n") {
+				fields := strings.Split(line, ":")
+				if len(fields) == 7 && fields[0] == u.Username && fields[6] != "" && fields[6] != "/usr/sbin/nologin" && fields[6] != "/bin/false" {
+					return fields[6]
+				}
+			}
+		}
+	}
+	if _, err := exec.LookPath("bash"); err == nil {
+		return "bash"
+	}
+	return "/bin/sh"
 }
 
 func ptyClosed(id string, exit int32, msg string) *agentpb.SessionRequest {
