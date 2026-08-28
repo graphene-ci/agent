@@ -28,8 +28,49 @@ func Collect() *agentpb.Facts {
 	}
 	f.MemoryBytes = totalMemoryBytes()
 	f.Addresses = collectAddresses()
+	f.Interfaces = collectInterfaces()
 	f.OsReleaseId, f.OsReleaseLike, f.OsReleaseVersion = osRelease()
 	return f
+}
+
+// collectInterfaces reports every up interface WITH its name — the
+// honest form: the consumer filters docker0/br-*/veth* by name instead
+// of guessing which address is real by its shape.
+func collectInterfaces() []*agentpb.Facts_Interface {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil
+	}
+	var out []*agentpb.Facts_Interface
+	total := 0
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		entry := &agentpb.Facts_Interface{Name: iface.Name}
+		for _, addr := range addrs {
+			ipNet, ok := addr.(*net.IPNet)
+			if !ok || ipNet.IP.IsLinkLocalUnicast() {
+				continue
+			}
+			entry.Addresses = append(entry.Addresses, ipNet.IP.String())
+			total++
+			if total == maxAddresses {
+				break
+			}
+		}
+		if len(entry.Addresses) > 0 {
+			out = append(out, entry)
+		}
+		if total == maxAddresses {
+			break
+		}
+	}
+	return out
 }
 
 // osRelease reads the distribution identity — what a library needs to

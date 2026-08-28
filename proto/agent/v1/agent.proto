@@ -127,6 +127,14 @@ message Facts {
   string os_release_id = 7;       // "ubuntu", "fedora", "altlinux", "arch", ...
   string os_release_like = 8;     // ID_LIKE: "debian", "rhel fedora", ...
   string os_release_version = 9;  // VERSION_ID
+  // Interfaces carry the addresses WITH their interface names, so a
+  // consumer filters by name (docker0, br-*, veth*) instead of
+  // guessing which address is real by its shape.
+  repeated Interface interfaces = 10;
+  message Interface {
+    string name = 1;
+    repeated string addresses = 2;
+  }
 }
 
 // Heartbeat proves liveness and carries the current container set, so a
