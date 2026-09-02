@@ -8,10 +8,12 @@
 package runcrt
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -64,8 +66,18 @@ func (r *Runtime) Start(ctx context.Context, c host.RunContainer) error {
 	if err := c.Validate(); err != nil {
 		return err
 	}
-	if status, err := r.Status(ctx, c); err == nil && status == host.StatusRunning {
-		return nil
+	name := containerName(c)
+	// Idempotent (re)start. runc `run` refuses a name that already has
+	// state — even a STOPPED one — with "container with given ID already
+	// exists". A run-worker that died on its first attempt (say, the
+	// server address was unreachable) leaves exactly that stale state, so
+	// every retry hit "already exists" forever. A live container is a
+	// no-op; a stale one is cleared before the run.
+	if st, err := r.state(ctx, name); err == nil {
+		if st == "running" || st == "created" {
+			return nil
+		}
+		_ = exec.CommandContext(ctx, r.runc, "delete", "-f", name).Run() //nolint:gosec // see below
 	}
 	cfg, err := r.readImageConfig(c.Image)
 	if err != nil {
@@ -106,14 +118,30 @@ func (r *Runtime) Start(ctx context.Context, c host.RunContainer) error {
 	defer func() { _ = logFile.Close() }()
 	//nolint:gosec // the runtime's whole job is driving the runc binary
 	cmd := exec.CommandContext(ctx, r.runc, "run", "--detach",
-		"--pid-file", filepath.Join(bundle, "pid"), containerName(c))
+		"--pid-file", filepath.Join(bundle, "pid"), name)
 	cmd.Dir = bundle
 	cmd.Stdout = logFile
-	cmd.Stderr = logFile
+	// runc's stderr goes to BOTH the on-disk log and a buffer, so the
+	// real reason ("container ... already exists", the worker's
+	// connection-refused) travels back in the error — and thus into the
+	// run's observability — instead of being swallowed as a bare "exit
+	// status 1" that only an ssh into the bundle could explain.
+	var errBuf bytes.Buffer
+	cmd.Stderr = io.MultiWriter(logFile, &errBuf)
 	if err := cmd.Run(); err != nil {
+		if detail := strings.TrimSpace(errBuf.String()); detail != "" {
+			return fmt.Errorf("runc run: %w: %s", err, lastLine(detail))
+		}
 		return fmt.Errorf("runc run: %w", err)
 	}
 	return nil
+}
+
+// lastLine is the final non-empty line of runc's stderr — the failure
+// message, without the whole log's noise.
+func lastLine(s string) string {
+	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
+	return strings.TrimSpace(lines[len(lines)-1])
 }
 
 // Stop terminates and removes the container; absence is not an error.
