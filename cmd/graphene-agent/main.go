@@ -33,11 +33,18 @@ func main() {
 }
 
 func run() error {
-	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	cfg, err := config.FromEnv()
 	if err != nil {
+		// No agent id yet — stderr only, no obs shipping.
+		slog.New(slog.NewTextHandler(os.Stderr, nil)).Error("config", "error", err)
 		return err
 	}
+	// The agent's own log tees to stderr (journald) AND to obs as
+	// dimension-3 logs of agent/<id>, so it is read with `graphenectl logs
+	// agent <id>` — not ssh + journalctl. The ship gets the live session
+	// connection below; records before/between connections wait in its ring.
+	ship := session.NewObsShip(string(cfg.AgentId))
+	log := slog.New(session.NewObsHandler(slog.NewTextHandler(os.Stderr, nil), ship))
 	store, err := session.OpenStore(cfg.DataDir)
 	if err != nil {
 		return err
@@ -55,5 +62,5 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	log.Info("starting", "version", version, "machine", cfg.AgentId, "runtime", cfg.Runtime)
-	return session.New(cfg, rt, store, version, log).Run(ctx)
+	return session.New(cfg, rt, store, version, log, ship).Run(ctx)
 }
