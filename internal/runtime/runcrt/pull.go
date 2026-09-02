@@ -25,17 +25,23 @@ type imageConfig struct {
 	WorkingDir string   `json:"workingDir,omitempty"`
 }
 
-// Pull fetches the image through the server's registry proxy — the only
-// registry the agent knows — and unpacks a flattened rootfs under the
-// data dir, keyed by image ref. Present images are not re-fetched.
-func (r *Runtime) Pull(ctx context.Context, image host.ImageRef) error {
+// Pull fetches the container's image through the server's registry proxy —
+// the only registry the agent knows — and unpacks a flattened rootfs under
+// the data dir, keyed by image ref. Present images are not re-fetched.
+// Pull progress streams to obs (stream "pull") so `graphenectl logs
+// run/<id>` shows the download as a person would see `docker pull` — no
+// more guessing whether a slow run is pulling or hung.
+func (r *Runtime) Pull(ctx context.Context, c host.RunContainer) error {
+	image := c.Image
 	if err := image.Validate(); err != nil {
 		return err
 	}
 	dir := r.imageDir(image)
 	if _, err := os.Stat(filepath.Join(dir, "config.json")); err == nil {
+		r.op(c, "pull", "image "+string(image)+" already present, skipping pull")
 		return nil
 	}
+	r.op(c, "pull", "pulling "+string(image))
 
 	nameOpts := []name.Option{name.WithDefaultRegistry(r.registry)}
 	if r.insecure {
@@ -50,11 +56,58 @@ func (r *Runtime) Pull(ctx context.Context, image host.ImageRef) error {
 	if r.token != "" {
 		opts = append(opts, remote.WithAuth(&authn.Bearer{Token: r.token}))
 	}
+	// Progress: go-containerregistry reports bytes complete/total on a
+	// channel; render it as periodic "downloading N% (done/total)" lines,
+	// the pull's equivalent of docker's per-layer bars.
+	updates := make(chan v1.Update, 8)
+	opts = append(opts, remote.WithProgress(updates))
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		var lastPct int64 = -1
+		for u := range updates {
+			if u.Error != nil {
+				r.op(c, "pull", "download error: "+u.Error.Error())
+				continue
+			}
+			if u.Total <= 0 {
+				continue
+			}
+			pct := u.Complete * 100 / u.Total
+			// Throttle to whole-percent steps: a byte-level channel is far
+			// too chatty for a log.
+			if pct != lastPct {
+				lastPct = pct
+				r.op(c, "pull", fmt.Sprintf("downloading %3d%% (%s / %s)", pct, humanBytes(u.Complete), humanBytes(u.Total)))
+			}
+		}
+	}()
 	img, err := remote.Image(ref, opts...)
 	if err != nil {
+		<-done
 		return fmt.Errorf("fetch image: %w", err)
 	}
-	return r.unpack(img, dir)
+	<-done
+	r.op(c, "pull", "download complete, unpacking rootfs")
+	if err := r.unpack(img, dir); err != nil {
+		return err
+	}
+	r.op(c, "pull", "pulled "+string(image))
+	return nil
+}
+
+// humanBytes renders a byte count like docker does.
+func humanBytes(n int64) string {
+	const unit = 1024
+	if n < unit {
+		return fmt.Sprintf("%dB", n)
+	}
+	div, exp := int64(unit), 0
+	for m := n / unit; m >= unit; m /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f%cB", float64(n)/float64(div), "KMGT"[exp])
 }
 
 func (r *Runtime) unpack(img v1.Image, dir string) error {

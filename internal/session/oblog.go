@@ -25,6 +25,8 @@ import (
 	logspb "go.opentelemetry.io/proto/otlp/logs/v1"
 	resourcepb "go.opentelemetry.io/proto/otlp/resource/v1"
 	"google.golang.org/grpc"
+
+	"github.com/graphene-ci/pipeline/pkg/id"
 )
 
 const (
@@ -49,6 +51,24 @@ func (s *obsShip) setConn(conn *grpc.ClientConn) {
 	s.mu.Lock()
 	s.conn = conn
 	s.mu.Unlock()
+}
+
+// Op ships one raw line of a machine operation (image pull, runc) as a
+// dimension-3 log of the RUN — so `graphenectl logs run/<id>` shows the
+// same output a person would see running it by hand. Attributed by the
+// graphene.run record attribute; the batch's resource already carries
+// graphene.agent. stream names the operation ("pull", "runc").
+func (s *obsShip) Op(agentID id.AgentId, runID id.RunId, stream, line string) {
+	s.add(&logspb.LogRecord{
+		TimeUnixNano:   uint64(time.Now().UnixNano()), //nolint:gosec // wall clock is positive
+		SeverityNumber: logspb.SeverityNumber_SEVERITY_NUMBER_INFO,
+		SeverityText:   "INFO",
+		Body:           &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: line}},
+		Attributes: []*commonpb.KeyValue{
+			strAttr("stream", stream),
+			strAttr("graphene.run", string(runID)),
+		},
+	})
 }
 
 func (s *obsShip) add(rec *logspb.LogRecord) {

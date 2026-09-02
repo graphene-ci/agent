@@ -25,10 +25,10 @@ type fakeRuntime struct {
 	stopped []host.RunContainer
 }
 
-func (f *fakeRuntime) Pull(_ context.Context, image host.ImageRef) error {
+func (f *fakeRuntime) Pull(_ context.Context, c host.RunContainer) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.pulled = append(f.pulled, image)
+	f.pulled = append(f.pulled, c.Image)
 	return nil
 }
 

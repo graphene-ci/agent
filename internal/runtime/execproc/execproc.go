@@ -31,7 +31,8 @@ func New(dataDir string) *Runtime {
 }
 
 // Pull verifies the "image" — the executable — exists.
-func (r *Runtime) Pull(_ context.Context, image host.ImageRef) error {
+func (r *Runtime) Pull(_ context.Context, c host.RunContainer) error {
+	image := c.Image
 	info, err := os.Stat(string(image))
 	if err != nil {
 		return fmt.Errorf("image executable: %w", err)

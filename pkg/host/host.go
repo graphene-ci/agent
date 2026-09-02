@@ -68,13 +68,23 @@ const (
 	StatusFailed  ContainerStatus = "failed"
 )
 
+// OpLog is where the agent streams the RAW output of a machine operation
+// — image-pull progress, runc's own stdout/stderr — line by line, exactly
+// what a person running the command by hand would see. Attributed to the
+// run and agent so it reads under `graphenectl logs run/<id>` (and the
+// agent), turning "it's just slow / stuck" into a visible operation. A nil
+// OpLog disables it; emission is always best-effort and never blocks.
+type OpLog interface {
+	Op(agentId id.AgentId, runId id.RunId, stream, line string)
+}
+
 // Runtime is the minimal container runtime the agent drives — pull, run,
 // stop, status. No docker installation is required; the implementation
 // runs OCI images directly. All methods are idempotent.
 type Runtime interface {
-	// Pull fetches the image (through the server's registry proxy) if it
-	// is not already present.
-	Pull(ctx context.Context, image ImageRef) error
+	// Pull fetches the container's image (through the server's registry
+	// proxy) if it is not already present, streaming pull progress to obs.
+	Pull(ctx context.Context, c RunContainer) error
 	// Start launches the container for the record; starting an already
 	// running container is a no-op.
 	Start(ctx context.Context, c RunContainer) error

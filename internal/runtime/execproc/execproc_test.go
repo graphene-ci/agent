@@ -25,7 +25,7 @@ func TestLifecycle(t *testing.T) {
 	}
 	ctx := context.Background()
 
-	if err := rt.Pull(ctx, c.Image); err != nil {
+	if err := rt.Pull(ctx, c); err != nil {
 		t.Fatal(err)
 	}
 	if err := rt.Start(ctx, c); err != nil {
