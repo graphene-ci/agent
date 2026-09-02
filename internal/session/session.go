@@ -235,6 +235,10 @@ func (s *Session) serve(ctx context.Context, stream agentpb.AgentAPI_SessionClie
 			if shells.handle(gctx, msg, outbox) {
 				continue
 			}
+			// Every server command the agent takes is visible in obs — the
+			// receipt itself, before any work, so a command that arrives but
+			// never acts is diagnosable without ssh.
+			s.log.Info("server command received", "command", commandName(msg))
 			select {
 			case commands <- msg:
 			case <-gctx.Done():
@@ -289,6 +293,21 @@ func (s *Session) serve(ctx context.Context, stream agentpb.AgentAPI_SessionClie
 	})
 
 	return group.Wait()
+}
+
+// commandName is the wire kind of a server command, for the obs log of
+// its receipt.
+func commandName(msg *agentpb.SessionResponse) string {
+	switch msg.GetBody().(type) {
+	case *agentpb.SessionResponse_EnsureContainer:
+		return "ensure-container"
+	case *agentpb.SessionResponse_StopContainer:
+		return "stop-container"
+	case *agentpb.SessionResponse_RotateToken:
+		return "rotate-token"
+	default:
+		return "unknown"
+	}
 }
 
 // execute performs one server command and returns the messages to send.
