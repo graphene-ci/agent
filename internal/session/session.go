@@ -318,7 +318,7 @@ func (s *Session) ensure(ctx context.Context, cmd *agentpb.EnsureContainer) []*a
 	}
 	var out []*agentpb.SessionRequest
 	out = append(out, report(c, agentpb.ContainerState_CONTAINER_STATE_PULLING, ""))
-	if err := s.runtime.Pull(ctx, c.Image); err != nil {
+	if err := s.runtime.Pull(ctx, c); err != nil {
 		s.log.Error("pull failed", "image", c.Image, "error", err)
 		return append(out,
 			report(c, agentpb.ContainerState_CONTAINER_STATE_FAILED, err.Error()),
