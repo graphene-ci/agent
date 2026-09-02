@@ -5,9 +5,13 @@ package session
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -76,6 +80,90 @@ func (s *Session) connectAndServe(ctx context.Context) error {
 	return s.serve(ctx, stream)
 }
 
+// selfUpdate replaces the running binary when the server's differs.
+// The downloaded binary's digest must match the announced one before it
+// replaces ours — a corrupt or wrong download never overwrites a working
+// agent. On success the process exits so systemd (Restart=always) brings
+// the new binary up; the caller does not return.
+func (s *Session) selfUpdate(ctx context.Context, wantDigest string) error {
+	if wantDigest == "" {
+		return nil
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	have, err := fileDigest(exe)
+	if err != nil {
+		return err
+	}
+	if have == wantDigest {
+		return nil
+	}
+	s.log.Info("agent binary out of date, self-updating", "have", short(have), "want", short(wantDigest))
+	scheme := "https"
+	if s.cfg.Insecure {
+		scheme = "http"
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, scheme+"://"+s.cfg.Server+"/agent/binary", nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+s.cfg.Token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("download: %s", resp.Status)
+	}
+	tmp := exe + ".new"
+	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755) //nolint:gosec // the agent binary is executable
+	if err != nil {
+		return err
+	}
+	h := sha256.New()
+	if _, err := io.Copy(io.MultiWriter(f, h), resp.Body); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmp)
+		return err
+	}
+	_ = f.Close()
+	if got := hex.EncodeToString(h.Sum(nil)); got != wantDigest {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("downloaded digest %s != announced %s", short(got), short(wantDigest))
+	}
+	if err := os.Rename(tmp, exe); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	s.log.Info("agent binary updated, restarting to run it")
+	os.Exit(0)
+	return nil
+}
+
+// fileDigest is the sha256 of a file, hex-encoded.
+func fileDigest(path string) (string, error) {
+	f, err := os.Open(path) //nolint:gosec // our own executable path
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = f.Close() }()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func short(digest string) string {
+	if len(digest) > 12 {
+		return digest[:12]
+	}
+	return digest
+}
+
 func (s *Session) serve(ctx context.Context, stream agentpb.AgentAPI_SessionClient) error {
 	hello := &agentpb.SessionRequest{Body: &agentpb.SessionRequest_Hello{Hello: &agentpb.Hello{
 		AgentId:      string(s.cfg.AgentId),
@@ -92,6 +180,13 @@ func (s *Session) serve(ctx context.Context, stream agentpb.AgentAPI_SessionClie
 	ack := first.GetHelloAck()
 	if ack == nil {
 		return errors.New("server did not ack hello")
+	}
+	// Self-update: the server serves the canonical agent binary and its
+	// digest. If ours differs, download the new one and re-exec — the
+	// binary that installs at boot is otherwise frozen forever (RotateToken
+	// renews the credential, never the code).
+	if err := s.selfUpdate(ctx, ack.GetAgentBinaryDigest()); err != nil {
+		s.log.Warn("self-update skipped", "error", err)
 	}
 	heartbeatEvery := time.Duration(ack.GetHeartbeatSeconds()) * time.Second
 	if heartbeatEvery == 0 {

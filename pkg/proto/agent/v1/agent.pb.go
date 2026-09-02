@@ -1043,8 +1043,12 @@ func (x *Heartbeat) GetContainers() []*ContainerReport {
 type HelloAck struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	HeartbeatSeconds uint32                 `protobuf:"varint,1,opt,name=heartbeat_seconds,json=heartbeatSeconds,proto3" json:"heartbeat_seconds,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// AgentBinaryDigest is the sha256 of the binary the server serves at
+	// /agent/binary. An agent whose own digest differs self-updates:
+	// downloads the new binary and re-execs. Empty disables the check.
+	AgentBinaryDigest string `protobuf:"bytes,2,opt,name=agent_binary_digest,json=agentBinaryDigest,proto3" json:"agent_binary_digest,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *HelloAck) Reset() {
@@ -1082,6 +1086,13 @@ func (x *HelloAck) GetHeartbeatSeconds() uint32 {
 		return x.HeartbeatSeconds
 	}
 	return 0
+}
+
+func (x *HelloAck) GetAgentBinaryDigest() string {
+	if x != nil {
+		return x.AgentBinaryDigest
+	}
+	return ""
 }
 
 // ContainerSpec describes one hosted container: the user worker of one
@@ -1518,9 +1529,10 @@ const file_proto_agent_v1_agent_proto_rawDesc = "" +
 	"\tHeartbeat\x129\n" +
 	"\n" +
 	"containers\x18\x01 \x03(\v2\x19.agent.v1.ContainerReportR\n" +
-	"containers\"7\n" +
+	"containers\"g\n" +
 	"\bHelloAck\x12+\n" +
-	"\x11heartbeat_seconds\x18\x01 \x01(\rR\x10heartbeatSeconds\"\xc3\x01\n" +
+	"\x11heartbeat_seconds\x18\x01 \x01(\rR\x10heartbeatSeconds\x12.\n" +
+	"\x13agent_binary_digest\x18\x02 \x01(\tR\x11agentBinaryDigest\"\xc3\x01\n" +
 	"\rContainerSpec\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12\x15\n" +
 	"\x06run_id\x18\x02 \x01(\tR\x05runId\x12\x14\n" +
