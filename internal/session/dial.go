@@ -8,9 +8,12 @@ import (
 	"fmt"
 	"os"
 
+	"time"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 
 	"github.com/graphene-ci/agent/internal/config"
 )
@@ -56,6 +59,17 @@ func Dial(cfg config.Config) (*grpc.ClientConn, error) {
 	conn, err := grpc.NewClient(cfg.Server,
 		grpc.WithTransportCredentials(transport),
 		grpc.WithPerRPCCredentials(bearerCredentials{token: cfg.Token, allowInsecure: cfg.Insecure}),
+		// Keepalive is the ONLY thing that detects a half-open connection:
+		// when the server is recreated without a clean RST (a compose
+		// redeploy), neither Recv nor a buffered heartbeat Send errors for
+		// minutes, and the agent sits a zombie — connected in its own mind,
+		// dropped by the server. HTTP/2 PINGs surface the dead peer within
+		// Time+Timeout, so the reconnect loop actually runs.
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:                15 * time.Second,
+			Timeout:             10 * time.Second,
+			PermitWithoutStream: true,
+		}),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create gRPC client: %w", err)

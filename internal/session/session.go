@@ -71,6 +71,16 @@ func (s *Session) connectAndServe(ctx context.Context) error {
 		return err
 	}
 	defer func() { _ = conn.Close() }()
+	// Closing the conn is what unblocks a Recv that a wedged transport
+	// would otherwise hold: on SIGTERM (ctx done) the agent must exit
+	// promptly, not sit in systemd's stop timeout until SIGKILL. Bounded
+	// to this connection so a normal stream-end does not leak the waiter.
+	connCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go func() {
+		<-connCtx.Done()
+		_ = conn.Close()
+	}()
 	s.tail.setConn(conn)
 	defer s.tail.setConn(nil)
 	stream, err := agentpb.NewAgentAPIClient(conn).Session(ctx)
