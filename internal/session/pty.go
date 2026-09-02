@@ -7,9 +7,12 @@ package session
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"os/user"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -68,6 +71,15 @@ func (p *ptys) open(ctx context.Context, req *agentpb.OpenPty, outbox chan<- *ag
 	//nolint:gosec // the whole point IS running the operator's shell
 	cmd := exec.CommandContext(ctx, loginShell(), "-l")
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
+	// Drop privileges: the agent runs as root, but the operator's shell
+	// should not. GRAPHENE_AGENT_PTY_USER names the unprivileged user to
+	// run it as; unset, the shell inherits the agent's uid and a loud
+	// warning says so — a root shell on a shared machine is a standing
+	// risk, not a default to leave silent.
+	if err := dropToPtyUser(cmd); err != nil {
+		send(ctx, outbox, ptyClosed(id, -1, err.Error()))
+		return
+	}
 	master, err := pty.StartWithSize(cmd, &pty.Winsize{
 		Cols: uint16(min(req.GetCols(), 65535)), //nolint:gosec // capped
 		Rows: uint16(min(req.GetRows(), 65535)), //nolint:gosec // capped
@@ -164,6 +176,50 @@ func (p *ptys) closeAll() {
 // environment carries nothing, and falling straight to /bin/sh lands
 // an operator in dash — no readline, no history, broken multibyte
 // input.
+// ptyWarnedRoot ensures the root-shell warning is logged once per
+// process, not on every OpenPty.
+var ptyWarnedRoot sync.Once
+
+// dropToPtyUser sets the shell to run as GRAPHENE_AGENT_PTY_USER, an
+// unprivileged account. Unset, the shell keeps the agent's uid (root on
+// a systemd machine) and a one-time warning names the risk. A named
+// user that does not exist is a hard error — a misconfigured drop must
+// fail loud, not silently fall back to root.
+func dropToPtyUser(cmd *exec.Cmd) error {
+	name := strings.TrimSpace(os.Getenv("GRAPHENE_AGENT_PTY_USER"))
+	if name == "" {
+		if os.Geteuid() == 0 {
+			ptyWarnedRoot.Do(func() {
+				slog.Warn("PTY shell runs as root: set GRAPHENE_AGENT_PTY_USER to an unprivileged account to drop privileges")
+			})
+		}
+		return nil
+	}
+	u, err := user.Lookup(name)
+	if err != nil {
+		return fmt.Errorf("pty user %q: %w", name, err)
+	}
+	uid, err := strconv.Atoi(u.Uid)
+	if err != nil {
+		return fmt.Errorf("pty user %q: bad uid %q", name, u.Uid)
+	}
+	gid, err := strconv.Atoi(u.Gid)
+	if err != nil {
+		return fmt.Errorf("pty user %q: bad gid %q", name, u.Gid)
+	}
+	if cmd.SysProcAttr == nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
+	}
+	cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)} //nolint:gosec // uid/gid from the passwd lookup
+	home := u.HomeDir
+	if home == "" {
+		home = "/"
+	}
+	cmd.Env = append(cmd.Env, "HOME="+home, "USER="+name, "LOGNAME="+name)
+	cmd.Dir = home
+	return nil
+}
+
 func loginShell() string {
 	if sh := os.Getenv("SHELL"); sh != "" {
 		return sh

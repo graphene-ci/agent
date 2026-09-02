@@ -146,6 +146,10 @@ message Heartbeat {
 // HelloAck accepts the agent and tunes its cadence.
 message HelloAck {
   uint32 heartbeat_seconds = 1;
+  // AgentBinaryDigest is the sha256 of the binary the server serves at
+  // /agent/binary. An agent whose own digest differs self-updates:
+  // downloads the new binary and re-execs. Empty disables the check.
+  string agent_binary_digest = 2;
 }
 
 // ContainerSpec describes one hosted container: the user worker of one
