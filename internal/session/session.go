@@ -34,14 +34,18 @@ type Session struct {
 	version string
 	log     *slog.Logger
 	tail    *tailers
+	// obs ships the agent's OWN log to the telemetry plane; nil disables
+	// it (tests). Fed the live conn alongside the tailer.
+	obs *obsShip
 	// runCtx bounds container tailers to the agent's life, not one
 	// stream's — containers survive reconnects.
 	runCtx context.Context //nolint:containedctx // set once by Run, the composition point
 }
 
-// New assembles a session.
-func New(cfg config.Config, rt host.Runtime, store *Store, version string, log *slog.Logger) *Session {
-	return &Session{cfg: cfg, runtime: rt, store: store, version: version, log: log, tail: newTailers(log)}
+// New assembles a session. ship carries the agent's own log to obs; pass
+// nil to disable (the tailer and stream work without it).
+func New(cfg config.Config, rt host.Runtime, store *Store, version string, log *slog.Logger, ship *obsShip) *Session {
+	return &Session{cfg: cfg, runtime: rt, store: store, version: version, log: log, tail: newTailers(log), obs: ship}
 }
 
 // Run keeps the agent connected until ctx ends: dial, serve one stream,
@@ -49,6 +53,9 @@ func New(cfg config.Config, rt host.Runtime, store *Store, version string, log *
 // every goroutine of the agent starts under it.
 func (s *Session) Run(ctx context.Context) error {
 	s.runCtx = ctx
+	if s.obs != nil {
+		go s.obs.runFlusher(ctx)
+	}
 	backoff := s.cfg.ReconnectMin
 	for {
 		err := s.connectAndServe(ctx)
@@ -83,6 +90,10 @@ func (s *Session) connectAndServe(ctx context.Context) error {
 	}()
 	s.tail.setConn(conn)
 	defer s.tail.setConn(nil)
+	if s.obs != nil {
+		s.obs.setConn(conn)
+		defer s.obs.setConn(nil)
+	}
 	stream, err := agentpb.NewAgentAPIClient(conn).Session(ctx)
 	if err != nil {
 		return err

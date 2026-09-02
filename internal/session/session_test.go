@@ -128,7 +128,7 @@ func TestSessionLifecycle(t *testing.T) {
 	defer cancel()
 	sessionDone := make(chan error, 1)
 	go func() {
-		sessionDone <- New(cfg, rt, store, "test", slog.New(slog.DiscardHandler)).Run(ctx)
+		sessionDone <- New(cfg, rt, store, "test", slog.New(slog.DiscardHandler), nil).Run(ctx)
 	}()
 
 	// Hello arrives with the machine id and facts.
