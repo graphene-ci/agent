@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -56,44 +58,44 @@ func (r *Runtime) Pull(ctx context.Context, c host.RunContainer) error {
 	if r.token != "" {
 		opts = append(opts, remote.WithAuth(&authn.Bearer{Token: r.token}))
 	}
-	// Progress: go-containerregistry reports bytes complete/total on a
-	// channel; render it as periodic "downloading N% (done/total)" lines,
-	// the pull's equivalent of docker's per-layer bars.
-	updates := make(chan v1.Update, 8)
-	opts = append(opts, remote.WithProgress(updates))
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		var lastPct int64 = -1
-		for u := range updates {
-			if u.Error != nil {
-				r.op(c, "pull", "download error: "+u.Error.Error())
-				continue
-			}
-			if u.Total <= 0 {
-				continue
-			}
-			pct := u.Complete * 100 / u.Total
-			// Throttle to whole-percent steps: a byte-level channel is far
-			// too chatty for a log.
-			if pct != lastPct {
-				lastPct = pct
-				r.op(c, "pull", fmt.Sprintf("downloading %3d%% (%s / %s)", pct, humanBytes(u.Complete), humanBytes(u.Total)))
-			}
-		}
-	}()
 	img, err := remote.Image(ref, opts...)
 	if err != nil {
-		<-done
 		return fmt.Errorf("fetch image: %w", err)
 	}
-	<-done
-	r.op(c, "pull", "download complete, unpacking rootfs")
-	if err := r.unpack(img, dir); err != nil {
+	// Progress from the manifest: layer count and total compressed size,
+	// the header docker prints before the bars.
+	if m, merr := img.Manifest(); merr == nil {
+		var total int64
+		for _, l := range m.Layers {
+			total += l.Size
+		}
+		r.op(c, "pull", fmt.Sprintf("%d layers, %s to download", len(m.Layers), humanBytes(total)))
+	}
+	if err := r.unpack(img, dir, func(n int64) { r.op(c, "pull", "downloaded "+humanBytes(n)) }); err != nil {
 		return err
 	}
 	r.op(c, "pull", "pulled "+string(image))
 	return nil
+}
+
+// countingReader tallies bytes read and reports the running total no more
+// often than `every` — steady pull progress without a line per read.
+type countingReader struct {
+	r      io.Reader
+	n      int64
+	last   time.Time
+	every  time.Duration
+	report func(int64)
+}
+
+func (c *countingReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	c.n += int64(n)
+	if time.Since(c.last) >= c.every {
+		c.last = time.Now()
+		c.report(c.n)
+	}
+	return n, err
 }
 
 // humanBytes renders a byte count like docker does.
@@ -110,7 +112,7 @@ func humanBytes(n int64) string {
 	return fmt.Sprintf("%.1f%cB", float64(n)/float64(div), "KMGT"[exp])
 }
 
-func (r *Runtime) unpack(img v1.Image, dir string) error {
+func (r *Runtime) unpack(img v1.Image, dir string, progress func(n int64)) error {
 	cfgFile, err := img.ConfigFile()
 	if err != nil {
 		return fmt.Errorf("image config: %w", err)
@@ -125,9 +127,16 @@ func (r *Runtime) unpack(img v1.Image, dir string) error {
 	if err := os.MkdirAll(rootfs, 0o755); err != nil { //nolint:gosec // see comment above
 		return err
 	}
+	// mutate.Extract streams the decompressed layers; wrap it in a
+	// time-throttled byte counter so the pull reports steady progress
+	// (docker-style) instead of a silent block that reads as "stuck".
 	flat := mutate.Extract(img)
 	defer func() { _ = flat.Close() }()
-	if err := untar(flat, rootfs); err != nil {
+	var src io.Reader = flat
+	if progress != nil {
+		src = &countingReader{r: flat, every: time.Second, report: progress}
+	}
+	if err := untar(src, rootfs); err != nil {
 		return fmt.Errorf("unpack rootfs: %w", err)
 	}
 	cfg := imageConfig{
