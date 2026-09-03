@@ -1,28 +1,28 @@
 # AGENTS.md — graphene-agent
 
-The machine agent of graphene vision v3 (`../GRAPHENE.MD` at the org
-root): a host for user worker containers, not an executor. The previous
-executor implementation (instruction protocol, PTY, artifacts,
-at-most-once barrier) lives in the `feat/machine-agent` branch — reuse
-its facts and connection code, do not resurrect the instruction
-semantics.
+Машинный агент Graphene. Текущая модель продукта находится в
+`../GRAPHENE.MD`: агент держит исходящее соединение, размещает пользовательские
+worker-контейнеры, исполняет команды сервера, обслуживает PTY и отправляет
+телеметрию машины.
 
-## Before making changes
+## Перед изменением
 
-1. Read `../GRAPHENE.MD` — the agent section: bootstrap, image pull
-   through the server, per-(machine × run) containers, supervise,
-   teardown. A change that contradicts the vision updates the vision
-   first.
-2. `make lint` and `make test` must be green before push.
+1. Прочитайте в `../GRAPHENE.MD` разделы об агенте, выполнении и безопасности.
+   Противоречащее им изменение сначала правит продуктовый документ.
+2. Перед push обязательны `make lint` и `make test`.
 
-## Code rules
+## Правила кода
 
-- Go; code, names, and comments in English. Commits are Conventional
-  Commits, no `Co-Authored-By`.
-- The agent listens on no ports: outbound connection only, scoped token.
-- The agent never speaks Temporal — the hosted user code does.
-- Queue names and identifiers come from the pipeline repository (`wire` / `id`);
-  no local duplicates of those conventions.
-- Secret values never appear in container env, logs, or specs — names
-  only.
-- All `Runtime` methods are idempotent (safe to retry).
+- Go; код, имена и комментарии — на английском. Коммиты — Conventional Commits
+  без `Co-Authored-By`.
+- Агент не слушает входящие порты: только исходящее соединение и scoped token.
+- Агент не соединяется с Temporal — это делает размещённый пользовательский
+  worker.
+- Команды сервера должны быть идемпотентны либо нести явную гарантию доставки.
+- PTY учитывает `GRAPHENE_AGENT_PTY_USER`; ошибка разрешения настроенного
+  пользователя должна закрывать доступ, а не давать fallback.
+- Самообновление проверяет требуемый digest до замены бинаря.
+- Имена queues и идентификаторы берутся из репозитория `pipeline`
+  (`wire`/`id`), локальные копии соглашений запрещены.
+- Значения секретов не попадают в container env, логи или specs — только ссылки.
+- Все методы `Runtime` идемпотентны и безопасны для повтора.
