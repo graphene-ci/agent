@@ -190,23 +190,28 @@ func lastLine(s string) string {
 }
 
 // Stop terminates and removes the container; absence is not an error.
+// Every runc call is time-bounded: a stuck container (a D-state process, a
+// wedged mount) must not hang the delete forever, because Stop runs on the
+// agent's single command goroutine — a hang there zombies the whole agent.
 func (r *Runtime) Stop(ctx context.Context, c host.RunContainer) error {
 	name := containerName(c)
-	if status, err := r.state(ctx, name); err == nil && status == "running" {
-		_ = exec.CommandContext(ctx, r.runc, "kill", name, "TERM").Run() //nolint:gosec // see Start
+	sctx, cancel := context.WithTimeout(ctx, 45*time.Second)
+	defer cancel()
+	if status, err := r.state(sctx, name); err == nil && status == "running" {
+		_ = exec.CommandContext(sctx, r.runc, "kill", name, "TERM").Run() //nolint:gosec // see Start
 		deadline := time.Now().Add(10 * time.Second)
 		for time.Now().Before(deadline) {
-			if s, err := r.state(ctx, name); err != nil || s != "running" {
+			if s, err := r.state(sctx, name); err != nil || s != "running" {
 				break
 			}
 			select {
-			case <-ctx.Done():
-				return ctx.Err()
+			case <-sctx.Done():
+				return sctx.Err()
 			case <-time.After(200 * time.Millisecond):
 			}
 		}
 	}
-	_ = exec.CommandContext(ctx, r.runc, "delete", "-f", name).Run() //nolint:gosec // see Start
+	_ = exec.CommandContext(sctx, r.runc, "delete", "-f", name).Run() //nolint:gosec // see Start
 	bundle := r.bundleDir(c)
 	if err := unmountOverlay(filepath.Join(bundle, "merged")); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("unmount: %w", err)

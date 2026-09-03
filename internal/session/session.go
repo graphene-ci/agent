@@ -25,6 +25,12 @@ import (
 	"github.com/graphene-ci/pipeline/pkg/id"
 )
 
+// commandTimeout bounds one server command's execution on the agent. A
+// handler that hangs (runc on a stuck container, a stalled pull) is cut
+// loose so the single execute goroutine keeps serving — the cap is above
+// a real image pull and below the server's ensure ScheduleToClose.
+const commandTimeout = 12 * time.Minute
+
 // Session is the agent's connection to the server, alive across
 // reconnects for the life of Run.
 type Session struct {
@@ -248,7 +254,13 @@ func (s *Session) serve(ctx context.Context, stream agentpb.AgentAPI_SessionClie
 	})
 
 	// Execute: container commands run one at a time — the agent hosts a
-	// handful of containers, ordering beats parallel pulls.
+	// handful of containers, ordering beats parallel pulls. Each command
+	// runs under a BOUNDED context: a handler that hangs (a runc delete on
+	// a stuck container, a stalled image pull) must not wedge this single
+	// goroutine forever — that turns the whole agent into a zombie that
+	// still keepalives (so the server thinks it is connected) but never
+	// processes another command. The cap is generous enough for a real
+	// image pull; the server's own ScheduleToClose is longer still.
 	group.Go(func() error {
 		for {
 			select {
@@ -256,7 +268,10 @@ func (s *Session) serve(ctx context.Context, stream agentpb.AgentAPI_SessionClie
 				if !ok {
 					return nil
 				}
-				for _, msg := range s.execute(gctx, cmd) {
+				cctx, cancel := context.WithTimeout(gctx, commandTimeout)
+				msgs := s.execute(cctx, cmd)
+				cancel()
+				for _, msg := range msgs {
 					select {
 					case outbox <- msg:
 					case <-gctx.Done():
