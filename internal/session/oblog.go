@@ -60,7 +60,7 @@ func (s *obsShip) setConn(conn *grpc.ClientConn) {
 // graphene.agent. stream names the operation ("pull", "runc").
 func (s *obsShip) Op(agentID id.AgentId, runID id.RunId, stream, line string) {
 	s.add(&logspb.LogRecord{
-		TimeUnixNano:   uint64(time.Now().UnixNano()), //nolint:gosec // wall clock is positive
+		TimeUnixNano:   uint64(time.Now().UnixNano()),
 		SeverityNumber: logspb.SeverityNumber_SEVERITY_NUMBER_INFO,
 		SeverityText:   "INFO",
 		Body:           &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: line}},
@@ -172,7 +172,7 @@ func (h *obsHandler) toRecord(r slog.Record) *logspb.LogRecord {
 	})
 	num, text := severity(r.Level)
 	return &logspb.LogRecord{
-		TimeUnixNano:   uint64(ts.UnixNano()), //nolint:gosec // wall clock is positive
+		TimeUnixNano:   uint64(ts.UnixNano()),
 		SeverityNumber: num,
 		SeverityText:   text,
 		Body:           &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: r.Message}},
