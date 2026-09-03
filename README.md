@@ -1,40 +1,38 @@
 # graphene-agent
 
-The agent is a **host, not an executor**: it manages one Linux machine on
-behalf of [graphene](https://github.com/graphene-ci/graphene). It listens
-on no ports — it authenticates with a scoped token and holds a single
-outbound gRPC connection to the graphene server.
+`graphene-agent` подключает одну Linux-машину к инсталляции Graphene. Он не
+слушает входящие порты: процесс аутентифицируется отдельным токеном агента и
+держит исходящее соединение с сервером.
 
-What it does:
+Агент сообщает факты и состояние машины, запускает изолированный worker-контейнер
+для каждой пары «машина × run», принимает управляющие команды сервера и передаёт
+телеметрию. Через тот же канал доступны интерактивный PTY, ротация токена и
+проверяемое самообновление. Контейнеры запускаются через `runc`; Docker на
+подключаемой машине не требуется. С Temporal агент не соединяется — Temporal
+worker работает внутри пользовательского контейнера.
 
-- **bootstrap** — connect, report machine facts, heartbeat; a machine
-  record becomes ready when its agent has connected;
-- **host user code** — pull the run's worker image through the server and
-  run one container per (machine × run) in a minimal container runtime
-  (no docker installation required); the code inside is an ordinary
-  Temporal worker on the machine's run queue;
-- **supervise and tear down** — the container is owned by the run: the
-  run's end removes it.
+Назначение агента и модель подключения описаны в
+[документации Graphene](https://graphene-ci.github.io/docs/concepts/agents).
 
-The agent itself never speaks Temporal and has no instruction protocol —
-executing things on the machine is the hosted user code's job
-(`pipeline.OnAgent` / `pipeline.Action` on the graphene side). The
-previous instruction-executor implementation lives in the
-`feat/machine-agent` branch; its facts and connection machinery will be
-reused.
+## Устройство
 
-## Layout
-
-| Package | What it is |
+| Путь | Назначение |
 |---|---|
-| `pkg/host` | Core types: `RunContainer` (machine × run), `Runtime` (pull/start/stop/status), statuses |
-| `cmd/graphene-agent` | The binary (connection loop lands next) |
+| `cmd/graphene-agent` | сборка бинаря и запуск процесса |
+| `internal/session` | исходящее соединение, команды, PTY, телеметрия и самообновление |
+| `internal/runtime` | управление worker-контейнерами через `runc` |
+| `internal/facts` | инвентарные факты Linux-машины |
+| `internal/config` | конфигурация агента |
+| `proto/agent` | контракт соединения агента с сервером |
 
-## Build and check
+## Сборка и проверка
 
 ```bash
-make configure   # pinned tools into bin/, nothing global
+make configure
 make lint
 make test
 make build
 ```
+
+`make configure` устанавливает закреплённые инструменты в `bin/` и не меняет
+системное окружение.
