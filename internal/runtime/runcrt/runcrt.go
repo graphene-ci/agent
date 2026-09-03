@@ -8,12 +8,10 @@
 package runcrt
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -133,53 +131,30 @@ func (r *Runtime) Start(ctx context.Context, c host.RunContainer) error {
 	cmd := exec.CommandContext(ctx, r.runc, "run", "--detach",
 		"--pid-file", filepath.Join(bundle, "pid"), name)
 	cmd.Dir = bundle
-	// runc's stdout/stderr go to the on-disk log, to obs line-by-line (the
-	// operator sees the run as if typed by hand), and stderr also to a
-	// buffer so the real reason ("container ... already exists", the
-	// worker's connection-refused) travels back in the error instead of a
-	// bare "exit status 1" that only an ssh into the bundle could explain.
-	obsW := &lineWriter{emit: func(l string) { r.op(c, "runc", l) }}
-	defer obsW.flush()
-	cmd.Stdout = io.MultiWriter(logFile, obsW)
-	var errBuf bytes.Buffer
-	cmd.Stderr = io.MultiWriter(logFile, &errBuf, obsW)
+	// stdout/stderr MUST be the on-disk log FILE, never a pipe/MultiWriter:
+	// with `runc run --detach` the container INHERITS these fds and keeps
+	// running, so a pipe's write end never closes and cmd.Run() would block
+	// forever waiting for EOF — hanging the agent's command goroutine even
+	// though the container is up. An *os.File fd is passed to the child
+	// directly, so cmd.Run() returns as soon as detached runc exits. The
+	// container's output still reaches obs: the tailer ships this log file
+	// as stream=container. On error we read the file's tail for the reason.
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
 	if err := cmd.Run(); err != nil {
-		if detail := strings.TrimSpace(errBuf.String()); detail != "" {
-			return fmt.Errorf("runc run: %w: %s", err, lastLine(detail))
-		}
-		return fmt.Errorf("runc run: %w", err)
+		return fmt.Errorf("runc run: %w: %s", err, r.logTail(bundle))
 	}
 	return nil
 }
 
-// lineWriter splits a byte stream into lines and emits each complete one;
-// flush releases a trailing partial line. Not concurrency-safe — one
-// stream at a time, or guarded by the caller (here runc's stdout and
-// stderr share one, and exec.Cmd serialises writes across its pipes).
-type lineWriter struct {
-	buf  bytes.Buffer
-	emit func(string)
-}
-
-func (w *lineWriter) Write(p []byte) (int, error) {
-	w.buf.Write(p)
-	for {
-		line, err := w.buf.ReadString('\n')
-		if err != nil {
-			w.buf.Reset()
-			w.buf.WriteString(line) // put the partial back
-			break
-		}
-		w.emit(strings.TrimRight(line, "\r\n"))
+// logTail returns the last non-empty line of the container's log file —
+// the runc failure reason, for the error surfaced to the run.
+func (r *Runtime) logTail(bundle string) string {
+	data, rerr := os.ReadFile(filepath.Join(bundle, "log")) //nolint:gosec // our own bundle
+	if rerr != nil {
+		return ""
 	}
-	return len(p), nil
-}
-
-func (w *lineWriter) flush() {
-	if rest := strings.TrimSpace(w.buf.String()); rest != "" {
-		w.emit(rest)
-	}
-	w.buf.Reset()
+	return lastLine(string(data))
 }
 
 // lastLine is the final non-empty line of runc's stderr — the failure
