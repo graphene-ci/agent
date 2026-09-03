@@ -7,6 +7,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -110,7 +111,7 @@ func (p *ptys) open(ctx context.Context, req *agentpb.OpenPty, outbox chan<- *ag
 		exit := int32(-1)
 		if err := cmd.Wait(); err == nil {
 			exit = 0
-		} else if ee, ok := err.(*exec.ExitError); ok {
+		} else if ee := new(exec.ExitError); errors.As(err, &ee) {
 			exit = int32(ee.ExitCode()) //nolint:gosec // exit codes are small
 		}
 		p.mu.Lock()

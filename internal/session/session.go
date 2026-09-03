@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -141,8 +142,8 @@ func (s *Session) selfUpdate(ctx context.Context, wantDigest string) error {
 	if err != nil {
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
+		_ = resp.Body.Close()
 		return fmt.Errorf("download: %s", resp.Status)
 	}
 	tmp := exe + ".new"
@@ -152,10 +153,12 @@ func (s *Session) selfUpdate(ctx context.Context, wantDigest string) error {
 	}
 	h := sha256.New()
 	if _, err := io.Copy(io.MultiWriter(f, h), resp.Body); err != nil {
+		_ = resp.Body.Close()
 		_ = f.Close()
 		_ = os.Remove(tmp)
 		return err
 	}
+	_ = resp.Body.Close()
 	_ = f.Close()
 	if got := hex.EncodeToString(h.Sum(nil)); got != wantDigest {
 		_ = os.Remove(tmp)
@@ -506,14 +509,40 @@ func (s *Session) rotate(token string) {
 	if !replaced {
 		lines = append(lines, config.EnvToken+"="+token)
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, []byte(strings.Join(lines, "\n")), 0o600); err != nil {
+	if err := replaceFile(path, []byte(strings.Join(lines, "\n")), 0o600); err != nil {
 		s.log.Warn("token rotated in memory only: env file not writable", "path", path, "error", err)
 		return
 	}
-	if err := os.Rename(tmp, path); err != nil {
-		s.log.Warn("token rotated in memory only: env file not replaceable", "path", path, "error", err)
-		return
-	}
 	s.log.Info("agent token rotated")
+}
+
+func replaceFile(path string, data []byte, mode os.FileMode) error {
+	dir, name := filepath.Dir(path), filepath.Base(path)
+	if name == "." || name == string(filepath.Separator) {
+		return fmt.Errorf("invalid file path %q", path)
+	}
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = root.Close() }()
+	tmp := name + ".tmp"
+	f, err := root.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		_ = root.Remove(tmp)
+		return err
+	}
+	if err := f.Close(); err != nil {
+		_ = root.Remove(tmp)
+		return err
+	}
+	if err := root.Rename(tmp, name); err != nil {
+		_ = root.Remove(tmp)
+		return err
+	}
+	return nil
 }
