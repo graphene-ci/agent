@@ -30,8 +30,8 @@ ver: ## Cut a release: make ver v=X.Y.Z (creates + pushes the tag → release CI
 	v="$(v)"; \
 	if ! echo "$$v" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$$'; then echo "usage: make ver v=X.Y.Z" >&2; exit 1; fi; \
 	if [ -n "$$(git status --porcelain)" ]; then echo "working tree is dirty — commit first" >&2; exit 1; fi; \
-	git tag "$$v" && git push origin "$$v"; \
-	echo "tagged $$v — release workflow running"
+	git tag "v$$v" && git push origin "v$$v"; \
+	echo "tagged v$$v — release workflow running"
 
 .PHONY: bump
 bump: ## Bump release tag: make bump TYPE=patch|minor|major (default patch)
