@@ -1,0 +1,44 @@
+# Release config for graphene-agent — the process a machine runs. Linux
+# only (it manages a Linux host's runtimes), amd64 + arm64. The server
+# image also builds it itself (go install agent@<tag>); these are the
+# standalone binaries for a manual/ssh install.
+version: 2
+
+project_name: graphene-agent
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - id: graphene-agent
+    main: ./cmd/graphene-agent
+    binary: graphene-agent
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: graphene-agent
+    formats: [tar.gz]
+    name_template: "graphene-agent_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+release:
+  github:
+    owner: graphene-ci
+    name: agent
+  draft: false
+  prerelease: auto
+
+changelog:
+  use: github
+  sort: asc
