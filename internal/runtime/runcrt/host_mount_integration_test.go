@@ -100,6 +100,7 @@ func TestHostMountChild(t *testing.T) {
 	}
 	// Positional arguments preserve paths and script contents literally.
 	script := `set -eu
+printf 'working_directory=%s expected=%s\n' "$(pwd -P)" "$1"
 test "$(pwd -P)" = "$1"
 mkdir -p "$1/mount"
 mount -t tmpfs -o size=1m tmpfs "$1/mount"

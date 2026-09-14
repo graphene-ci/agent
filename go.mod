@@ -5,7 +5,7 @@ go 1.25.7
 require (
 	github.com/creack/pty v1.1.24
 	github.com/google/go-containerregistry v0.21.9
-	github.com/graphene-ci/pipeline v0.2.3
+	github.com/graphene-ci/pipeline v0.2.4-0.20260914113357-0e0514ae9cda
 	github.com/moby/sys/capability v0.4.0
 	github.com/opencontainers/runtime-spec v1.3.0
 	go.opentelemetry.io/proto/otlp v1.11.0
