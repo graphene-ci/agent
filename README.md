@@ -76,6 +76,6 @@ tag (lockstep).
 The opt-in runtime integration test runs on a disposable root VM with runc:
 `GRAPHENE_TEST_DISPOSABLE_VM=1 go test -tags=integration ./internal/runtime/runcrt -run TestHostMountIntegration`.
 It verifies that a mount created by a packaged executor is visible both on the
-host and through the executor file API. Its SDK must include host namespace
-execution. `GRAPHENE_TEST_HOST_SCRIPT` optionally supplies an additional host
+host and through the executor file API. It also verifies that `exec.Cmd.Dir` survives namespace entry. CI runs this
+test as root on an ephemeral runner; SDK >= 0.2.3 is required. `GRAPHENE_TEST_HOST_SCRIPT` optionally supplies an additional host
 script; it executes as root and is only intended for disposable test machines.

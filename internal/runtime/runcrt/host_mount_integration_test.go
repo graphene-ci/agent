@@ -100,6 +100,7 @@ func TestHostMountChild(t *testing.T) {
 	}
 	// Positional arguments preserve paths and script contents literally.
 	script := `set -eu
+test "$(pwd -P)" = "$1"
 mkdir -p "$1/mount"
 mount -t tmpfs -o size=1m tmpfs "$1/mount"
 printf mounted > "$1/mount/proof"
@@ -108,6 +109,7 @@ if [ -n "$2" ]; then /bin/sh "$2"; fi
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	cmd := machine.Command(ctx, "/bin/sh", "-c", script, "probe", machine.Workspace(), os.Getenv("GRAPHENE_TEST_HOST_SCRIPT"))
+	cmd.Dir = machine.Workspace()
 	out, err := cmd.CombinedOutput()
 	result := "ok"
 	if raw, readErr := os.ReadFile(machine.Path(filepath.Join(machine.Workspace(), "mount", "proof"))); readErr != nil || string(raw) != "mounted" {

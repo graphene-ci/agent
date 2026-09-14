@@ -27,3 +27,17 @@ jobs:
       - run: make lint
       - run: make build
       - run: make test
+
+  host-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Build static runtime integration test
+        run: CGO_ENABLED=0 go test -tags=integration -c -o /tmp/graphene-runtime.test ./internal/runtime/runcrt
+      - name: Verify host mounts and command working directory
+        run: |
+          command -v runc
+          sudo env GRAPHENE_TEST_DISPOSABLE_VM=1 /tmp/graphene-runtime.test -test.run=^TestHostMountIntegration$ -test.v
