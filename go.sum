@@ -30,6 +30,8 @@ github.com/graphene-ci/pipeline v0.2.3 h1:o9zVwix/DOJ15NblMzXneEENtvNKgeXF7LBojK
 github.com/graphene-ci/pipeline v0.2.3/go.mod h1:qEhJWRQleFEn4Hsl3eajzOEgCQWjQVa2G+B9GXHB0LI=
 github.com/graphene-ci/pipeline v0.2.4-0.20260914113357-0e0514ae9cda h1:hzEADw3Jm2eUDy3q18/EGxKfKaqfPBvnEpT0ZykrHKI=
 github.com/graphene-ci/pipeline v0.2.4-0.20260914113357-0e0514ae9cda/go.mod h1:qEhJWRQleFEn4Hsl3eajzOEgCQWjQVa2G+B9GXHB0LI=
+github.com/graphene-ci/pipeline v0.2.4 h1:ifZerPTJCydRYt8MZBVNInEIHs7kMiq2CoL8imA4fkU=
+github.com/graphene-ci/pipeline v0.2.4/go.mod h1:qEhJWRQleFEn4Hsl3eajzOEgCQWjQVa2G+B9GXHB0LI=
 github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3 h1:B+8ClL/kCQkRiU82d9xajRPKYMrB7E0MbtzWVi1K4ns=
 github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3/go.mod h1:NbCUVmiS4foBGBHOYlCT25+YmGpJ32dZPi75pGEUpj4=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 h1:5VipnvEpbqr2gA2VbM+nYVbkIF28c5ZQfqCBQ5g2xfk=
