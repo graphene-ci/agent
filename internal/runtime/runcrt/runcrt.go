@@ -113,6 +113,9 @@ func (r *Runtime) Start(ctx context.Context, c host.RunContainer) error {
 		return err
 	}
 	spec := containerSpec(cfg, c.Env, workspace)
+	if err := machineAccess(spec); err != nil {
+		return err
+	}
 	raw, err := json.MarshalIndent(spec, "", "  ")
 	if err != nil {
 		return err

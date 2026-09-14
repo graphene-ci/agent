@@ -4,12 +4,19 @@
 listens on no inbound port: the process authenticates with its own agent token
 and holds an outbound connection to the server.
 
-The agent reports the machine's facts and state, launches an isolated worker
+The agent reports the machine's facts and state, launches a packaged worker
 container for each (machine × run) pair, accepts the server's control commands
 and ships telemetry. The same channel carries an interactive PTY, token
 rotation and verified self-update. Containers run through `runc`; the connected
 machine needs no Docker. The agent does not connect to Temporal — the Temporal
 worker runs inside the user's container.
+
+Machine executors have root access to the connected machine: containers are
+packaging, not a security boundary. The runtime preserves the agent's permitted
+capabilities within its bounding set and permits device access within the parent
+cgroup's limits. Machine commands use the host's util-linux `nsenter` to make
+mounts visible to host services. Interactive PTY credentials remain separately
+controlled by `GRAPHENE_AGENT_PTY_USER`.
 
 The agent's purpose and connection model are described in the
 [Graphene docs](https://graphene-ci.github.io/docs/concepts/agents).
@@ -65,3 +72,10 @@ make ver v=0.1.0        # or: make bump TYPE=minor
 
 Tag the agent BEFORE graphene — the server image embeds the agent of the same
 tag (lockstep).
+
+The opt-in runtime integration test runs on a disposable root VM with runc:
+`GRAPHENE_TEST_DISPOSABLE_VM=1 go test -tags=integration ./internal/runtime/runcrt -run TestHostMountIntegration`.
+It verifies that a mount created by a packaged executor is visible both on the
+host and through the executor file API. Its SDK must include host namespace
+execution. `GRAPHENE_TEST_HOST_SCRIPT` optionally supplies an additional host
+script; it executes as root and is only intended for disposable test machines.
