@@ -109,6 +109,26 @@ func TestCollect(t *testing.T) {
 	}
 }
 
+func TestKernelRelease(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "proc/sys/kernel"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "proc/sys/kernel/osrelease"), []byte("6.8.0-45-generic\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := kernelRelease(root); got != "6.8.0-45-generic" {
+		t.Fatalf("kernel %q", got)
+	}
+	if got := kernelRelease(t.TempDir()); got != "" {
+		t.Fatalf("no /proc: %q", got)
+	}
+	if runtime.GOOS == "linux" && Collect().GetKernelRelease() == "" {
+		t.Fatal("this Linux host reports no kernel")
+	}
+}
+
 func BenchmarkCollectDisks(b *testing.B) {
 	root := machine(b)
 	for b.Loop() {

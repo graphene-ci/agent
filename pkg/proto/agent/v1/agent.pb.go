@@ -965,7 +965,10 @@ type Facts struct {
 	// stable across reboots: a hardware key and the target a mount record
 	// names by id. Virtual devices (loop, ram, zram, device-mapper) and
 	// what is mounted where are not facts: mounts are records.
-	Disks         []*Facts_Disk `protobuf:"bytes,11,rep,name=disks,proto3" json:"disks,omitempty"`
+	Disks []*Facts_Disk `protobuf:"bytes,11,rep,name=disks,proto3" json:"disks,omitempty"`
+	// kernel_release is the running kernel, as `uname -r` prints it — what
+	// decides kernel features (openat2 needs 5.6) that os-release does not.
+	KernelRelease string `protobuf:"bytes,12,opt,name=kernel_release,json=kernelRelease,proto3" json:"kernel_release,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1075,6 +1078,13 @@ func (x *Facts) GetDisks() []*Facts_Disk {
 		return x.Disks
 	}
 	return nil
+}
+
+func (x *Facts) GetKernelRelease() string {
+	if x != nil {
+		return x.KernelRelease
+	}
+	return ""
 }
 
 // Heartbeat proves liveness and carries the current container set, so a
@@ -1691,7 +1701,7 @@ const file_proto_agent_v1_agent_proto_rawDesc = "" +
 	"\x05Hello\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12#\n" +
 	"\ragent_version\x18\x02 \x01(\tR\fagentVersion\x12%\n" +
-	"\x05facts\x18\x03 \x01(\v2\x0f.agent.v1.FactsR\x05facts\"\xf9\x04\n" +
+	"\x05facts\x18\x03 \x01(\v2\x0f.agent.v1.FactsR\x05facts\"\xa0\x05\n" +
 	"\x05Facts\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x0e\n" +
 	"\x02os\x18\x02 \x01(\tR\x02os\x12\x12\n" +
@@ -1706,7 +1716,8 @@ const file_proto_agent_v1_agent_proto_rawDesc = "" +
 	"interfaces\x18\n" +
 	" \x03(\v2\x19.agent.v1.Facts.InterfaceR\n" +
 	"interfaces\x12*\n" +
-	"\x05disks\x18\v \x03(\v2\x14.agent.v1.Facts.DiskR\x05disks\x1a=\n" +
+	"\x05disks\x18\v \x03(\v2\x14.agent.v1.Facts.DiskR\x05disks\x12%\n" +
+	"\x0ekernel_release\x18\f \x01(\tR\rkernelRelease\x1a=\n" +
 	"\tInterface\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1c\n" +
 	"\taddresses\x18\x02 \x03(\tR\taddresses\x1a\xba\x01\n" +

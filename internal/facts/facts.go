@@ -31,7 +31,19 @@ func Collect() *agentpb.Facts {
 	f.Interfaces = collectInterfaces()
 	f.OsReleaseId, f.OsReleaseLike, f.OsReleaseVersion = osRelease()
 	f.Disks = collectDisks("/")
+	f.KernelRelease = kernelRelease("/")
 	return f
+}
+
+// kernelRelease is the running kernel ("6.8.0-45-generic"), from the
+// filesystem at root; empty where there is no /proc (not Linux).
+func kernelRelease(root string) string {
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = r.Close() }()
+	return readTrim(r, "proc/sys/kernel/osrelease")
 }
 
 // collectInterfaces reports every up interface WITH its name — the
