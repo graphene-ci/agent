@@ -62,5 +62,5 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	log.Info("starting", "version", version, "machine", cfg.AgentId, "runtime", cfg.Runtime)
-	return session.New(cfg, rt, store, version, log, ship).Run(ctx)
+	return session.New(cfg, rt, store, version, log, ship, session.NewSystemdDetacher()).Run(ctx)
 }

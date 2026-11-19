@@ -50,7 +50,17 @@ message SessionResponse {
     PtyInput pty_input = 6;
     PtyResize pty_resize = 7;
     ClosePty close_pty = 8;
+    Decommission decommission = 9;
   }
+}
+
+// Decommission takes the agent off its machine: the agent schedules the
+// server's uninstall script outside itself (the script stops this very
+// process), answers with a CommandResult, and the session ends with the
+// agent. The script is the server's, the same one an SSH uninstall runs.
+message Decommission {
+  string command_id = 1;
+  string script = 2;
 }
 
 // OpenPty asks the agent to start an interactive shell in a pty. The

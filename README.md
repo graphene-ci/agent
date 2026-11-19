@@ -63,6 +63,11 @@ make build
 system environment. `make generate` regenerates `pkg/proto` from
 `proto/agent/v1/agent.proto` with them; generated files are not edited by hand.
 
+A server command `Decommission` takes the agent off its machine: the agent hands
+the server's uninstall script to systemd as a transient unit that runs after a
+short delay (the script stops this very service), answers, and goes. Without
+systemd the command is refused.
+
 The facts an agent reports on connect include its physical disks (name, size,
 rotational, transport, model, serial and `/dev/disk/by-id` names), read from
 `/sys/block`; virtual devices (loop, zram, device-mapper) are left out.

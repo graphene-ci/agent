@@ -6,6 +6,14 @@ output:
     text:
       path: stdout
 linters:
+  exclusions:
+    rules:
+      # Decommission runs the uninstall script the authenticated server
+      # sent over the agent's own session — executing it is the command's
+      # purpose; the server is the agent's root of trust.
+      - path: internal/session/decommission\.go
+        linters: [gosec]
+        text: 'G204:'
   default: standard
   enable:
     - errorlint

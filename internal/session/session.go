@@ -47,12 +47,14 @@ type Session struct {
 	// runCtx bounds container tailers to the agent's life, not one
 	// stream's — containers survive reconnects.
 	runCtx context.Context //nolint:containedctx // set once by Run, the composition point
+	// detach runs the uninstall outside the agent's own process.
+	detach Detacher
 }
 
 // New assembles a session. ship carries the agent's own log to obs; pass
 // nil to disable (the tailer and stream work without it).
-func New(cfg config.Config, rt host.Runtime, store *Store, version string, log *slog.Logger, ship *obsShip) *Session {
-	return &Session{cfg: cfg, runtime: rt, store: store, version: version, log: log, tail: newTailers(log), obs: ship}
+func New(cfg config.Config, rt host.Runtime, store *Store, version string, log *slog.Logger, ship *obsShip, detach Detacher) *Session {
+	return &Session{cfg: cfg, runtime: rt, store: store, version: version, log: log, tail: newTailers(log), obs: ship, detach: detach}
 }
 
 // Run keeps the agent connected until ctx ends: dial, serve one stream,
@@ -323,6 +325,8 @@ func commandName(msg *agentpb.SessionResponse) string {
 		return "stop-container"
 	case *agentpb.SessionResponse_RotateToken:
 		return "rotate-token"
+	case *agentpb.SessionResponse_Decommission:
+		return "decommission"
 	default:
 		return "unknown"
 	}
@@ -338,6 +342,8 @@ func (s *Session) execute(ctx context.Context, cmd *agentpb.SessionResponse) []*
 	case *agentpb.SessionResponse_RotateToken:
 		s.rotate(body.RotateToken.GetToken())
 		return nil
+	case *agentpb.SessionResponse_Decommission:
+		return s.decommission(ctx, body.Decommission)
 	default:
 		s.log.Warn("unknown server message ignored")
 		return nil
