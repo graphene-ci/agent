@@ -69,8 +69,9 @@ short delay (the script stops this very service), answers, and goes. Without
 systemd the command is refused.
 
 The facts an agent reports on connect include its physical disks (name, size,
-rotational, transport, model, serial and `/dev/disk/by-id` names) and the running kernel, read from
-`/sys/block`; virtual devices (loop, zram, device-mapper) are left out.
+rotational, transport, model, serial and `/dev/disk/by-id` names), read from
+`/sys/block` — virtual devices (loop, zram, device-mapper) are left out — and the
+running kernel release from `/proc/sys/kernel/osrelease`.
 
 ## Release
 
