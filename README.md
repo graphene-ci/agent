@@ -60,7 +60,12 @@ make build
 ```
 
 `make configure` installs the pinned tools into `bin/` and does not touch the
-system environment.
+system environment. `make generate` regenerates `pkg/proto` from
+`proto/agent/v1/agent.proto` with them; generated files are not edited by hand.
+
+The facts an agent reports on connect include its physical disks (name, size,
+rotational, transport, model, serial and `/dev/disk/by-id` names), read from
+`/sys/block`; virtual devices (loop, zram, device-mapper) are left out.
 
 ## Release
 

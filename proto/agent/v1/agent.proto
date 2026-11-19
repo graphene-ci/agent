@@ -135,6 +135,22 @@ message Facts {
     string name = 1;
     repeated string addresses = 2;
   }
+  // Disks are the machine's physical block devices — what the box IS,
+  // stable across reboots: a hardware key and the target a mount record
+  // names by id. Virtual devices (loop, ram, zram, device-mapper) and
+  // what is mounted where are not facts: mounts are records.
+  repeated Disk disks = 11;
+  message Disk {
+    string name = 1;           // kernel name: "nvme0n1", "sda", "vdb"
+    uint64 size_bytes = 2;
+    bool rotational = 3;       // spinning media
+    string transport = 4;      // "nvme", "virtio", "scsi", ...
+    string model = 5;
+    string serial = 6;
+    // by_id are the /dev/disk/by-id names that point at the whole disk:
+    // stable across reboots and device renumbering.
+    repeated string by_id = 7;
+  }
 }
 
 // Heartbeat proves liveness and carries the current container set, so a

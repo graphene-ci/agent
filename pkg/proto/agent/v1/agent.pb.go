@@ -888,7 +888,12 @@ type Facts struct {
 	// Interfaces carry the addresses WITH their interface names, so a
 	// consumer filters by name (docker0, br-*, veth*) instead of
 	// guessing which address is real by its shape.
-	Interfaces    []*Facts_Interface `protobuf:"bytes,10,rep,name=interfaces,proto3" json:"interfaces,omitempty"`
+	Interfaces []*Facts_Interface `protobuf:"bytes,10,rep,name=interfaces,proto3" json:"interfaces,omitempty"`
+	// Disks are the machine's physical block devices — what the box IS,
+	// stable across reboots: a hardware key and the target a mount record
+	// names by id. Virtual devices (loop, ram, zram, device-mapper) and
+	// what is mounted where are not facts: mounts are records.
+	Disks         []*Facts_Disk `protobuf:"bytes,11,rep,name=disks,proto3" json:"disks,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -989,6 +994,13 @@ func (x *Facts) GetOsReleaseVersion() string {
 func (x *Facts) GetInterfaces() []*Facts_Interface {
 	if x != nil {
 		return x.Interfaces
+	}
+	return nil
+}
+
+func (x *Facts) GetDisks() []*Facts_Disk {
+	if x != nil {
+		return x.Disks
 	}
 	return nil
 }
@@ -1457,6 +1469,100 @@ func (x *Facts_Interface) GetAddresses() []string {
 	return nil
 }
 
+type Facts_Disk struct {
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Name       string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"` // kernel name: "nvme0n1", "sda", "vdb"
+	SizeBytes  uint64                 `protobuf:"varint,2,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	Rotational bool                   `protobuf:"varint,3,opt,name=rotational,proto3" json:"rotational,omitempty"` // spinning media
+	Transport  string                 `protobuf:"bytes,4,opt,name=transport,proto3" json:"transport,omitempty"`    // "nvme", "virtio", "scsi", ...
+	Model      string                 `protobuf:"bytes,5,opt,name=model,proto3" json:"model,omitempty"`
+	Serial     string                 `protobuf:"bytes,6,opt,name=serial,proto3" json:"serial,omitempty"`
+	// by_id are the /dev/disk/by-id names that point at the whole disk:
+	// stable across reboots and device renumbering.
+	ById          []string `protobuf:"bytes,7,rep,name=by_id,json=byId,proto3" json:"by_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Facts_Disk) Reset() {
+	*x = Facts_Disk{}
+	mi := &file_proto_agent_v1_agent_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Facts_Disk) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Facts_Disk) ProtoMessage() {}
+
+func (x *Facts_Disk) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_agent_v1_agent_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Facts_Disk.ProtoReflect.Descriptor instead.
+func (*Facts_Disk) Descriptor() ([]byte, []int) {
+	return file_proto_agent_v1_agent_proto_rawDescGZIP(), []int{10, 1}
+}
+
+func (x *Facts_Disk) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Facts_Disk) GetSizeBytes() uint64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *Facts_Disk) GetRotational() bool {
+	if x != nil {
+		return x.Rotational
+	}
+	return false
+}
+
+func (x *Facts_Disk) GetTransport() string {
+	if x != nil {
+		return x.Transport
+	}
+	return ""
+}
+
+func (x *Facts_Disk) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
+}
+
+func (x *Facts_Disk) GetSerial() string {
+	if x != nil {
+		return x.Serial
+	}
+	return ""
+}
+
+func (x *Facts_Disk) GetById() []string {
+	if x != nil {
+		return x.ById
+	}
+	return nil
+}
+
 var File_proto_agent_v1_agent_proto protoreflect.FileDescriptor
 
 const file_proto_agent_v1_agent_proto_rawDesc = "" +
@@ -1508,7 +1614,7 @@ const file_proto_agent_v1_agent_proto_rawDesc = "" +
 	"\x05Hello\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12#\n" +
 	"\ragent_version\x18\x02 \x01(\tR\fagentVersion\x12%\n" +
-	"\x05facts\x18\x03 \x01(\v2\x0f.agent.v1.FactsR\x05facts\"\x90\x03\n" +
+	"\x05facts\x18\x03 \x01(\v2\x0f.agent.v1.FactsR\x05facts\"\xf9\x04\n" +
 	"\x05Facts\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x0e\n" +
 	"\x02os\x18\x02 \x01(\tR\x02os\x12\x12\n" +
@@ -1522,10 +1628,22 @@ const file_proto_agent_v1_agent_proto_rawDesc = "" +
 	"\n" +
 	"interfaces\x18\n" +
 	" \x03(\v2\x19.agent.v1.Facts.InterfaceR\n" +
-	"interfaces\x1a=\n" +
+	"interfaces\x12*\n" +
+	"\x05disks\x18\v \x03(\v2\x14.agent.v1.Facts.DiskR\x05disks\x1a=\n" +
 	"\tInterface\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1c\n" +
-	"\taddresses\x18\x02 \x03(\tR\taddresses\"F\n" +
+	"\taddresses\x18\x02 \x03(\tR\taddresses\x1a\xba\x01\n" +
+	"\x04Disk\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x02 \x01(\x04R\tsizeBytes\x12\x1e\n" +
+	"\n" +
+	"rotational\x18\x03 \x01(\bR\n" +
+	"rotational\x12\x1c\n" +
+	"\ttransport\x18\x04 \x01(\tR\ttransport\x12\x14\n" +
+	"\x05model\x18\x05 \x01(\tR\x05model\x12\x16\n" +
+	"\x06serial\x18\x06 \x01(\tR\x06serial\x12\x13\n" +
+	"\x05by_id\x18\a \x03(\tR\x04byId\"F\n" +
 	"\tHeartbeat\x129\n" +
 	"\n" +
 	"containers\x18\x01 \x03(\v2\x19.agent.v1.ContainerReportR\n" +
@@ -1581,7 +1699,7 @@ func file_proto_agent_v1_agent_proto_rawDescGZIP() []byte {
 }
 
 var file_proto_agent_v1_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_proto_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_proto_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_proto_agent_v1_agent_proto_goTypes = []any{
 	(ContainerState)(0),     // 0: agent.v1.ContainerState
 	(*SessionRequest)(nil),  // 1: agent.v1.SessionRequest
@@ -1603,7 +1721,8 @@ var file_proto_agent_v1_agent_proto_goTypes = []any{
 	(*StopContainer)(nil),   // 17: agent.v1.StopContainer
 	(*CommandResult)(nil),   // 18: agent.v1.CommandResult
 	(*Facts_Interface)(nil), // 19: agent.v1.Facts.Interface
-	nil,                     // 20: agent.v1.ContainerSpec.EnvEntry
+	(*Facts_Disk)(nil),      // 20: agent.v1.Facts.Disk
+	nil,                     // 21: agent.v1.ContainerSpec.EnvEntry
 }
 var file_proto_agent_v1_agent_proto_depIdxs = []int32{
 	10, // 0: agent.v1.SessionRequest.hello:type_name -> agent.v1.Hello
@@ -1622,17 +1741,18 @@ var file_proto_agent_v1_agent_proto_depIdxs = []int32{
 	6,  // 13: agent.v1.SessionResponse.close_pty:type_name -> agent.v1.ClosePty
 	11, // 14: agent.v1.Hello.facts:type_name -> agent.v1.Facts
 	19, // 15: agent.v1.Facts.interfaces:type_name -> agent.v1.Facts.Interface
-	15, // 16: agent.v1.Heartbeat.containers:type_name -> agent.v1.ContainerReport
-	20, // 17: agent.v1.ContainerSpec.env:type_name -> agent.v1.ContainerSpec.EnvEntry
-	0,  // 18: agent.v1.ContainerReport.state:type_name -> agent.v1.ContainerState
-	14, // 19: agent.v1.EnsureContainer.spec:type_name -> agent.v1.ContainerSpec
-	1,  // 20: agent.v1.AgentAPI.Session:input_type -> agent.v1.SessionRequest
-	2,  // 21: agent.v1.AgentAPI.Session:output_type -> agent.v1.SessionResponse
-	21, // [21:22] is the sub-list for method output_type
-	20, // [20:21] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	20, // 16: agent.v1.Facts.disks:type_name -> agent.v1.Facts.Disk
+	15, // 17: agent.v1.Heartbeat.containers:type_name -> agent.v1.ContainerReport
+	21, // 18: agent.v1.ContainerSpec.env:type_name -> agent.v1.ContainerSpec.EnvEntry
+	0,  // 19: agent.v1.ContainerReport.state:type_name -> agent.v1.ContainerState
+	14, // 20: agent.v1.EnsureContainer.spec:type_name -> agent.v1.ContainerSpec
+	1,  // 21: agent.v1.AgentAPI.Session:input_type -> agent.v1.SessionRequest
+	2,  // 22: agent.v1.AgentAPI.Session:output_type -> agent.v1.SessionResponse
+	22, // [22:23] is the sub-list for method output_type
+	21, // [21:22] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_proto_agent_v1_agent_proto_init() }
@@ -1664,7 +1784,7 @@ func file_proto_agent_v1_agent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_agent_v1_agent_proto_rawDesc), len(file_proto_agent_v1_agent_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   20,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -30,6 +30,7 @@ func Collect() *agentpb.Facts {
 	f.Addresses = collectAddresses()
 	f.Interfaces = collectInterfaces()
 	f.OsReleaseId, f.OsReleaseLike, f.OsReleaseVersion = osRelease()
+	f.Disks = collectDisks("/")
 	return f
 }
 

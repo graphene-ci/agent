@@ -5,12 +5,30 @@ BIN := $(CURDIR)/bin
 export PATH := $(BIN):$(PATH)
 
 GOLANGCI_LINT_VERSION := v2.12.2
+EASYP_VERSION := v0.16.6
+PROTOC_GEN_GO_VERSION := v1.36.12
+PROTOC_GEN_GO_GRPC_VERSION := v1.6.2
+
+GO_TOOLS := $(BIN)/golangci-lint $(BIN)/easyp $(BIN)/protoc-gen-go $(BIN)/protoc-gen-go-grpc
 
 .PHONY: configure
-configure: $(BIN)/golangci-lint ## Install pinned repository tools into bin
+configure: $(GO_TOOLS) ## Install pinned repository tools into bin
 
 $(BIN)/golangci-lint:
 	GOBIN=$(BIN) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+
+$(BIN)/easyp:
+	GOBIN=$(BIN) go install github.com/easyp-tech/easyp/cmd/easyp@$(EASYP_VERSION)
+
+$(BIN)/protoc-gen-go:
+	GOBIN=$(BIN) go install google.golang.org/protobuf/cmd/protoc-gen-go@$(PROTOC_GEN_GO_VERSION)
+
+$(BIN)/protoc-gen-go-grpc:
+	GOBIN=$(BIN) go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@$(PROTOC_GEN_GO_GRPC_VERSION)
+
+.PHONY: generate
+generate: $(GO_TOOLS) ## Generate the agent<->server contract from proto
+	$(BIN)/easyp generate
 
 .PHONY: test
 test: ## Run tests
